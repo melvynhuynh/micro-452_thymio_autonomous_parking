@@ -7,15 +7,20 @@ and its inputs (see the README).
 """
 
 
-def show(grid, goal, path, cam_pose, pose):
-    """Refresh the live display.
+def show(frame, grid, goal, path, cam_pose, pose, cov):
+    """Refresh the live display, drawn over the camera image.
 
+    frame     image from vision.read_frame(), or None.
     grid      array of ROWS x COLS, 0 = free, 1 = car, or None.
     goal      (x, y) of the target, in metres, or None.
     path      list of (x, y) waypoints, in metres. Can be empty.
     cam_pose  (x, y, theta) seen by the camera, or None.
     pose      (x, y, theta) best estimate (after filtering), or None.
+    cov       3 x 3 array, uncertainty of pose, or None.
+
+    vision.to_pixels(x, y) says where a point in metres is in the image.
 
     Gives back nothing.
     """
-    # TODO (Malvyn): draw the grid, the target, the path and the two poses.
+    # TODO (Malvyn): draw on the image the grid, the target, the path, the two
+    # poses and the uncertainty of the filtered one.

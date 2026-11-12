@@ -16,8 +16,13 @@ def avoid(prox, ground):
 
     Gives back:
         None           nothing is in the way: motion control keeps the wheels.
-        (left, right)  wheel speeds, in Thymio units, to go around the
+        (left, right)  wheel speeds, in Thymio units, to steer away from the
                        obstacle. On the black border: (0, 0).
+
+    Give back None only once the robot is clear of the obstacle, not the
+    instant the sensors lose it. A variable kept in this file between two
+    calls can help. The main loop then plans a new path around the cell of
+    the obstacle.
     """
     # TODO (Laurent): real avoidance.
     return None

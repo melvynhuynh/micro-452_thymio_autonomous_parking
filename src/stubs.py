@@ -27,6 +27,13 @@ def detect(frame):
     return common.EXAMPLE_GRID.copy(), common.EXAMPLE_POSE, common.EXAMPLE_GOAL
 
 
+def to_pixels(x, y):
+    """Fake conversion: as if the lot filled the whole 640 x 480 image."""
+    u = round(x / (common.COLS * common.CELL) * 640)
+    v = round(480 - y / (common.ROWS * common.CELL) * 480)
+    return u, v
+
+
 # --- localization ------------------------------------------------------------
 
 def update(cam_pose, wheel_speeds, dt):
@@ -73,5 +80,5 @@ def avoid(prox, ground):
 
 # --- visualization -----------------------------------------------------------
 
-def show(grid, goal, path, cam_pose, pose):
+def show(frame, grid, goal, path, cam_pose, pose, cov):
     """Fake display: nothing is drawn."""

@@ -158,6 +158,7 @@ Each file exposes exactly these functions. What happens inside is the owner's bu
 |---|---|---|
 | `vision.py` | `read_frame()` | the camera image, or `None` |
 | `vision.py` | `detect(frame)` | `grid, cam_pose, goal` |
+| `vision.py` | `to_pixels(x, y)` *(to confirm)* | `(u, v)`: the same point in the camera image, or `None` |
 | `localization.py` | `update(cam_pose, wheel_speeds, dt)` | `pose, cov` |
 | `global_nav.py` | `plan(grid, pose, goal)` | `path` |
 | `motion.py` | `go_to(waypoint, pose)` | `left, right, reached` |
@@ -165,13 +166,15 @@ Each file exposes exactly these functions. What happens inside is the owner's bu
 | `robot.py` | `read()` | `prox, ground, wheel_speeds` |
 | `robot.py` | `set_speed(left, right)` | nothing |
 | `local_nav.py` | `avoid(prox, ground)` | `None`, or `(left, right)` |
-| `visualization.py` | `show(grid, goal, path, cam_pose, pose)` | nothing; refreshes the display |
+| `visualization.py` | `show(frame, grid, goal, path, cam_pose, pose, cov)` | nothing; refreshes the display |
 
 - **`detect`**: if `frame` is `None`, it gives back `None, None, None`.
-- **`update`**: `dt` is the time since the last call, in seconds. First version: gives back `cam_pose, None`. Final version: a Kalman filter that predicts with `wheel_speeds` and corrects with `cam_pose` when it is not `None`.
+- **`to_pixels`**: turns a position in metres into a pixel of the camera image (`u` = column, `v` = row), so that the display can draw on the image. `None` as long as the lot has never been seen.
+- **`update`**: `dt` is the time since the last call, in seconds. First version: gives back `cam_pose, None`. Final version: an extended Kalman filter that predicts with `wheel_speeds` and corrects with `cam_pose` when it is not `None`.
 - **`plan`**: gives back `[]` if the robot or the goal is outside the lot or on a car, or if no path exists.
 - **`go_to`**: `left` and `right` are wheel speeds; `reached` is `True` when the robot is within `WAYPOINT_TOL` of the waypoint.
-- **`avoid`**: `None` means nothing is in the way. Wheel speeds mean local navigation takes over. On the black border it gives back `(0, 0)`.
+- **`avoid`**: `None` means nothing is in the way. Wheel speeds mean local navigation takes over. On the black border it gives back `(0, 0)`. It may keep a variable in its file between two calls, so that it does not give back `None` the instant the sensors lose an obstacle that is still beside the robot.
+- **`show`**: draws over the camera image `frame`, not on a separate graph: grid, target, path, camera pose, filtered pose and its uncertainty `cov`. `frame` and `cov` can be `None`.
 
 ## How the blocks run together
 
@@ -192,12 +195,13 @@ flowchart LR
 One turn of the main loop, about ten times per second:
 
 ```python
-grid, cam_pose, goal       = vision.detect(vision.read_frame())
+frame                      = vision.read_frame()
+grid, cam_pose, goal       = vision.detect(frame)
 prox, ground, wheel_speeds = robot.read()
 pose, cov                  = localization.update(cam_pose, wheel_speeds, dt)
 override                   = local_nav.avoid(prox, ground)
 # the state decides what goes to robot.set_speed(...)
-visualization.show(grid, goal, path, cam_pose, pose)
+visualization.show(frame, grid, goal, path, cam_pose, pose, cov)
 ```
 
 The main loop remembers the last `grid` and the last `goal` that were not `None`. It never does that for the position: **every block uses `pose`, never `cam_pose`**. That is the shared "current location", and it is why the filter can arrive last without anyone else changing code.
@@ -206,10 +210,12 @@ The main loop remembers the last `grid` and the last `goal` that were not `None`
 |---|---|---|
 | `PLAN` | Robot stopped; `global_nav.plan` | path found → `FOLLOW` |
 | `FOLLOW` | `motion.go_to` the current waypoint | `override` not `None` → `AVOID` · grid or goal changed, or robot far from the path → `PLAN` · last waypoint reached → `DONE` |
-| `AVOID` | `override` goes to the wheels | `override` is `None` again → `PLAN` from the current pose |
+| `AVOID` | The cell just in front of the robot is remembered as blocked; `override` goes to the wheels | `override` is `None` again → `PLAN` from the current pose |
 | `DONE` | Robot stopped on the target | goal moved → `PLAN` |
 
 In every state, `pose` is `None` → stop.
+
+**Coming back after an obstacle.** The camera does not see the added obstacle, so a new plan on the camera grid alone would send the robot straight back into it. The main loop therefore keeps the blocked cells in memory and gives `plan` the camera grid with those cells set to `1`. `plan` itself does not change. The blocked cells are forgotten when the target is reached or moved *(to confirm)*.
 
 ## Working alone with stubs
 
@@ -251,29 +257,32 @@ A block is ready when it gives the right values on the shared example.
 - [ ] Find the black boxes and fill `grid`.
 - [ ] Find the red paper → `goal`.
 - [ ] Find the robot marker → `cam_pose`; the dot gives the heading.
+- [ ] Detect colours in HSV, not RGB, and set the thresholds under the lighting of the demo room.
 - [ ] Give back `None` for whatever is hidden.
+- [ ] `to_pixels` for the live display *(to confirm)*.
 
 **Global navigation — Malvyn**
 - [ ] Shortest path on `grid` (A*, four neighbours) from the cell of `pose` to the cell of `goal`.
 - [ ] Give back a `path` that follows the rules above, `[]` in every failure case.
-- [ ] Live visualisation *(to confirm)*.
+- [ ] Live visualisation drawn over the camera image: grid, path, camera pose, filtered pose and its uncertainty *(to confirm)*.
 
 **Motion control — Antoine**
 - [ ] `robot.py`: connection, sensors, wheel speeds.
-- [ ] Measure `THYMIO_TO_MS` and `WHEEL_BASE`.
-- [ ] `go_to`: turn towards the waypoint, drive to it while correcting the heading.
-- [ ] `main.py` and its four states *(to confirm)*.
+- [ ] Measure `THYMIO_TO_MS` and `WHEEL_BASE`; keep the recordings in `data/`, the filter needs them.
+- [ ] `go_to`: steer smoothly towards the waypoint, with no on/off switch between turning and driving. Gains set on the real robot.
+- [ ] `main.py`, its four states and the blocked cells *(to confirm)*.
 
 **Local navigation — Laurent**
 - [ ] Measure at what distance the sensors see our boxes and test objects.
-- [ ] `avoid` steers around an obstacle and gives back `None` once it is passed.
+- [ ] `avoid` steers away from an obstacle and gives back `None` only once the robot is clear of it. The new plan then goes around the blocked cell.
 - [ ] Must not trigger on parked cars beside the aisle while driving normally.
 - [ ] Detect the black border with the ground sensors.
 
 **Filtering — Joshua, once the first full run works**
-- [ ] Kalman filter on `(x, y, theta)` inside `localization.update`.
+- [ ] Extended Kalman filter on `(x, y, theta)` inside `localization.update`.
+- [ ] Measure its noise values on our own recordings in `data/` (wheel speeds, camera pose). No default or guessed values.
 - [ ] Camera hidden (`cam_pose` is `None`): keep predicting, the robot keeps driving.
-- [ ] Fill `cov`; show camera pose and filtered pose on the same plot.
+- [ ] Fill `cov`, so that the display can show the uncertainty.
 
 ## Milestones
 
@@ -282,7 +291,7 @@ A block is ready when it gives the right values on the shared example.
 | Sun 15 Nov | Spec agreed, lot built, files created with the stubs, `main.py` runs on fake data |
 | Sun 22 Nov | Each block works alone on the real camera or the real Thymio |
 | Wed 25 Nov | First full run: camera → path → Thymio reaches the target |
-| Sun 29 Nov | Added obstacle avoided; Kalman filter in; camera hidden and kidnapping tested |
+| Sun 29 Nov | Added obstacle avoided; filter in; camera hidden and kidnapping tested |
 | Wed 2 Dec | Live visualisation and backup video ready |
 | Sun 6 Dec, 19:00 | Notebook submitted |
 
@@ -290,7 +299,7 @@ A block is ready when it gives the right values on the shared example.
 
 - **Robot marker:** a printed ArUco marker read with OpenCV would give position and heading in one call, instead of the coloured rectangle and dot. Less code, and less sensitive to lighting. Joshua to decide.
 - **Blue pen lines:** can the ground sensors see them? Probably not: they measure infrared reflection, and a thin line is easy to miss. If they can, counting line crossings could help when the camera is hidden; until then it is not part of the plan.
-- **Turning room:** is a 20 cm cell enough to turn in place next to our boxes?
+- **Turning room:** is a 20 cm cell enough to turn in place next to our boxes? By calculation there are about 3 cm to spare next to a 15 cm box, so the robot must reach each cell centre to within 2 or 3 cm. To test on the real lot in the first week; if it is too tight, make the boxes smaller.
 - **Blocked aisle:** an obstacle in an aisle with cars on both sides cannot be driven around; the robot stops and replans.
 
 ## Not in the first version

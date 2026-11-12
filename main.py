@@ -21,13 +21,15 @@ def main():
     robot.connect()
     last_time = time.time()
 
-    # TODO (Antoine): replace this by the real loop and its four states.
+    # TODO (Antoine): replace this by the real loop and its four states, and
+    # remember the cells blocked by an added obstacle (see the README).
     for turn in range(3):
         now = time.time()
         dt = now - last_time
         last_time = now
 
-        grid, cam_pose, goal = vision.detect(vision.read_frame())
+        frame = vision.read_frame()
+        grid, cam_pose, goal = vision.detect(frame)
         prox, ground, wheel_speeds = robot.read()
         pose, cov = localization.update(cam_pose, wheel_speeds, dt)
         override = local_nav.avoid(prox, ground)
@@ -38,7 +40,7 @@ def main():
             left, right, reached = motion.go_to(path[0], pose)
         robot.set_speed(left, right)
 
-        visualization.show(grid, goal, path, cam_pose, pose)
+        visualization.show(frame, grid, goal, path, cam_pose, pose, cov)
         print(f"turn {turn}: pose={pose} goal={goal} "
               f"waypoints={len(path)} override={override} "
               f"speeds=({left}, {right})")

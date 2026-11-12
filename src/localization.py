@@ -3,8 +3,8 @@
 Gives the best estimate of where the robot is. Every other block uses this
 estimate, never the camera directly.
 
-For now the function just trusts the camera. The Kalman filter comes last and
-goes inside the same function; keep its name, its inputs and what it gives
+For now the function just trusts the camera. The extended Kalman filter comes
+last and goes inside the same function; keep its name, its inputs and what it gives
 back (see the README).
 """
 
@@ -22,6 +22,7 @@ def update(cam_pose, wheel_speeds, dt):
         cov   3 x 3 array, uncertainty of (x, y, theta). None until the filter
               exists.
     """
-    # TODO (Joshua): Kalman filter. Predict with wheel_speeds, correct with
-    # cam_pose when it is not None.
+    # TODO (Joshua): extended Kalman filter. Predict with wheel_speeds, correct
+    # with cam_pose when it is not None. Noise values measured on our own
+    # recordings in data/, not default ones.
     return cam_pose, None

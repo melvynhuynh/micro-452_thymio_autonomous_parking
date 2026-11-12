@@ -38,3 +38,19 @@ def detect(frame):
         return None, None, None
     # TODO (Joshua): real detection.
     return common.EXAMPLE_GRID.copy(), common.EXAMPLE_POSE, common.EXAMPLE_GOAL
+
+
+def to_pixels(x, y):
+    """Where a point of the lot is in the camera image (to confirm).
+
+    The live display uses it to draw on the image.
+
+    x, y  position in metres.
+
+    Gives back (u, v): column and row of the pixel, as OpenCV drawing
+    functions expect. None as long as the lot has never been seen.
+    """
+    # TODO (Joshua): real conversion, with what detect() found.
+    u = round(x / (common.COLS * common.CELL) * 640)
+    v = round(480 - y / (common.ROWS * common.CELL) * 480)
+    return u, v
