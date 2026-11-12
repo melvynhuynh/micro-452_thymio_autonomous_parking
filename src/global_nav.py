@@ -1,4 +1,4 @@
-"""Global navigation block. Owner: Malvyn.
+"""Global navigation block. Owner: Melvyn.
 
 Find the path from the robot to the target that avoids the cars of the grid.
 
@@ -25,5 +25,5 @@ def plan(grid, pose, goal):
 
     Use common.xy_to_cell and common.cell_to_xy to go between metres and cells.
     """
-    # TODO (Malvyn): real path planning.
+    # TODO (Melvyn): real path planning.
     return list(common.EXAMPLE_PATH)

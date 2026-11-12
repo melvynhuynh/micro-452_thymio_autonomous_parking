@@ -42,8 +42,8 @@ src/
     stubs.py             fake version of every block
     vision.py            Joshua
     localization.py      Joshua     (the filter, last)
-    global_nav.py        Malvyn
-    visualization.py     Malvyn     (to confirm)
+    global_nav.py        Melvyn
+    visualization.py     Melvyn     (to confirm)
     motion.py            Antoine
     robot.py             Antoine    (link with the Thymio)
     local_nav.py         Laurent
@@ -261,7 +261,7 @@ A block is ready when it gives the right values on the shared example.
 - [ ] Give back `None` for whatever is hidden.
 - [ ] `to_pixels` for the live display *(to confirm)*.
 
-**Global navigation — Malvyn**
+**Global navigation — Melvyn**
 - [ ] Shortest path on `grid` (A*, four neighbours) from the cell of `pose` to the cell of `goal`.
 - [ ] Give back a `path` that follows the rules above, `[]` in every failure case.
 - [ ] Live visualisation drawn over the camera image: grid, path, camera pose, filtered pose and its uncertainty *(to confirm)*.

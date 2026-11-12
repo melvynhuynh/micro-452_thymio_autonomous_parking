@@ -1,4 +1,4 @@
-"""Live visualisation. Owner: Malvyn (to confirm).
+"""Live visualisation. Owner: Melvyn (to confirm).
 
 Show, while the robot drives, what the system sees and believes.
 
@@ -22,5 +22,5 @@ def show(frame, grid, goal, path, cam_pose, pose, cov):
 
     Gives back nothing.
     """
-    # TODO (Malvyn): draw on the image the grid, the target, the path, the two
+    # TODO (Melvyn): draw on the image the grid, the target, the path, the two
     # poses and the uncertainty of the filtered one.
