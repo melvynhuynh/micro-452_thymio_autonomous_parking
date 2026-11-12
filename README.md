@@ -215,7 +215,22 @@ The main loop remembers the last `grid` and the last `goal` that were not `None`
 
 In every state, `pose` is `None` → stop.
 
-**Coming back after an obstacle.** The camera does not see the added obstacle, so a new plan on the camera grid alone would send the robot straight back into it. The main loop therefore keeps the blocked cells in memory and gives `plan` the camera grid with those cells set to `1`. `plan` itself does not change. The blocked cells are forgotten when the target is reached or moved *(to confirm)*.
+### When an obstacle is added
+
+Local navigation never plans a path. It takes the wheels while something is in the way, then gives them back. The new path comes from global navigation, and the main loop decides when to ask for it:
+
+1. **Local navigation** sees the obstacle with the sensors: `avoid` gives back wheel speeds instead of `None`.
+2. **The main loop** goes to `AVOID`, sends these speeds to the wheels, and remembers the cell just in front of the robot as blocked.
+3. **Local navigation** steers away until the robot is clear, then gives back `None` again.
+4. **The main loop** goes to `PLAN` and calls `plan` with the camera grid in which the blocked cells are set to `1`.
+5. **Global navigation** gives back a new path. For it, a blocked cell is one more car, so the path goes around by another lane.
+6. **Motion control** follows the new path as usual.
+
+So `local_nav.py` never sees the grid or the path, `global_nav.py` never sees the sensors, and `plan` does not change.
+
+Why the blocked cell is needed: the camera does not see the added obstacle, so a new plan on the camera grid alone would send the robot straight back into it.
+
+If the obstacle closes the only way, `plan` gives back `[]` and the robot stops. The blocked cells are forgotten when the target is reached or moved *(to confirm)*.
 
 ## Working alone with stubs
 
@@ -300,7 +315,9 @@ A block is ready when it gives the right values on the shared example.
 - **Robot marker:** a printed ArUco marker read with OpenCV would give position and heading in one call, instead of the coloured rectangle and dot. Less code, and less sensitive to lighting. Joshua to decide.
 - **Blue pen lines:** can the ground sensors see them? Probably not: they measure infrared reflection, and a thin line is easy to miss. If they can, counting line crossings could help when the camera is hidden; until then it is not part of the plan.
 - **Turning room:** is a 20 cm cell enough to turn in place next to our boxes? By calculation there are about 3 cm to spare next to a 15 cm box, so the robot must reach each cell centre to within 2 or 3 cm. To test on the real lot in the first week; if it is too tight, make the boxes smaller.
-- **Blocked aisle:** an obstacle in an aisle with cars on both sides cannot be driven around; the robot stops and replans.
+- **Blocked aisle:** an obstacle in an aisle with cars on both sides cannot be driven around; the robot steers away and takes another lane.
+- **Is this enough for local navigation?** We steer away and replan around the cell; we do not drive around the obstacle to rejoin the old path. It suits a lot with 20 cm lanes, but local navigation is graded: ask a TA.
+- **Obstacle removed:** should a blocked cell be forgotten after a few seconds, so that the robot tries again when the only way was closed?
 
 ## Not in the first version
 
