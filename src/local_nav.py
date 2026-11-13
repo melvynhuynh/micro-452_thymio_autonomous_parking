@@ -1,13 +1,20 @@
-"""Local navigation block. Owner: Laurent.
-
-Avoid, with the sensors of the Thymio, obstacles that are not on the map, and
-never cross the black border.
-
-For now the function says that nothing is ever in the way. Replace what is
-inside it; keep its name, its inputs and what it gives back (see the README).
 """
+=========================================================
+            LOCAL NAVIGATION -- parking.py 
+=========================================================
+
+Inputs:
 
 
+Outputs:
+
+
+Author: Laurent Duret
+Date: 11 November 2026
+=========================================================
+"""
+TEST = False
+PROXIMITY_THRESHOLD = 3300
 def avoid(prox, ground):
     """Decide whether local navigation must take the wheels.
 
@@ -26,3 +33,82 @@ def avoid(prox, ground):
     """
     # TODO (Laurent): real avoidance.
     return None
+
+def obstacle_detected(prox):
+
+    detected = [value > PROXIMITY_THRESHOLD for value in prox[:5]]
+    obstacle = any(detected)
+
+    return obstacle, detected
+
+prox = [0, 1200, 3500, 1800, 0, 0, 0]
+
+obstacle, sensors = obstacle_detected(prox)
+print(obstacle)
+print(sensors)
+
+if obstacle:
+    if sensors[0] or sensors[1]:
+        print("Obstacle à gauche")
+
+    if sensors[2]:
+        print("Obstacle au centre")
+
+    if sensors[3] or sensors[4]:
+        print("Obstacle à droite")
+
+
+if __name__ == "__main__":
+
+    from tdmclient import ClientAsync
+
+    with ClientAsync() as client:
+
+        async def test_sensors():
+            node = await client.wait_for_node()
+
+            # Wait until sensor variables are available
+            await node.wait_for_variables({
+                "prox.horizontal",
+                "prox.ground.delta"
+            })
+
+            print("Thymio connected! Reading sensors...")
+
+            while True:
+                prox = list(node.v.prox.horizontal)
+                ground = list(node.v.prox.ground.delta)
+
+                print(f"Proximity: {prox} | Ground: {ground}")
+
+                await client.sleep(0.1)
+
+        client.run_async_program(test_sensors)
+
+
+
+# Small test module just in case
+if (TEST):
+    from tdmclient import ClientAsync
+    def motors(left, right):
+        return {
+            "motor.left.target": [left],
+            "motor.right.target": [right],
+        }
+
+    with ClientAsync() as client:
+
+        async def program():
+            with await client.lock() as node:
+
+                try:
+                    print("Motors start")
+                    await node.set_variables(motors(100, 100))
+
+                    await client.sleep(5)
+
+                finally:
+                    await node.set_variables(motors(0, 0))
+                    print("Motors stop")
+
+        client.run_async_program(program)
