@@ -86,12 +86,6 @@ def motor_command(direction):
     else:
         return FORWARD_SPEED, FORWARD_SPEED
 
-def motors(left, right):
-    return {
-        "motor.left.target": [left],
-        "motor.right.target": [right],
-    }
-
 from tdmclient import ClientAsync
 
 # Test module
@@ -101,63 +95,65 @@ if __name__ == "__main__":
 
         async def test_sensors():
 
-            node = await client.wait_for_node()
+            with await client.lock() as node:
 
-            await node.wait_for_variables({
-                "prox.horizontal",
-                "prox.ground.delta"
-            })
+                await node.wait_for_variables({
+                    "prox.horizontal",
+                    "prox.ground.delta",
+                    "motor.left.target",
+                    "motor.right.target"
+                })
 
-            print("Thymio connected!")
-            print("Starting obstacle avoidance test...")
+                print("Thymio connected!")
+                print("Starting obstacle avoidance test...")
 
-            avoiding = False
-            clear_count = 0
-            direction = "right"
+                avoiding = False
+                clear_count = 0
+                direction = "right"
 
-            try:
-                while True:
+                try:
+                    while True:
 
-                    prox = list(node.v.prox.horizontal)
-                    ground = list(node.v.prox.ground.delta)
+                        prox = list(node.v.prox.horizontal)
+                        ground = list(node.v.prox.ground.delta)
 
-                    obstacle, sensors = obstacle_detected(prox)
+                        obstacle, sensors = obstacle_detected(prox)
 
-                    if not avoiding and obstacle:
-                        avoiding = True
-                        clear_count = 0
-                        direction = choose_direction(prox)
-
-                    if avoiding:
-                        if obstacle:
+                        if not avoiding and obstacle:
+                            avoiding = True
                             clear_count = 0
                             direction = choose_direction(prox)
+
+                        if avoiding:
+                            if obstacle:
+                                clear_count = 0
+                                direction = choose_direction(prox)
+                            else:
+                                clear_count += 1
+
+                            if clear_count >= CLEAR_LIMIT:
+                                avoiding = False
+                                clear_count = 0
+
+                        if avoiding:
+                            left, right = motor_command(direction)
+                            state = f"AVOIDING ({direction})"
                         else:
-                            clear_count += 1
+                            left, right = motor_command("forward")
+                            state = "FORWARD"
 
-                        if clear_count >= CLEAR_LIMIT:
-                            avoiding = False
-                            clear_count = 0
+                        node.v.motor.left.target = left
+                        node.v.motor.right.target = right
+                        node.flush()
 
-                    if avoiding:
-                        left, right = motor_command(direction)
-                        state = f"AVOIDING ({direction})"
-                    else:
-                        left, right = motor_command("forward")
-                        state = "FORWARD"
+                        print(f"{state} | Prox: {prox[:5]} | Motors: ({left}, {right})")
 
-                    node.v.motor.left.target = left
-                    node.v.motor.right.target = right
+                        await client.sleep(0.1)
+
+                finally:
+                    node.v.motor.left.target = 0
+                    node.v.motor.right.target = 0
                     node.flush()
-
-                    print(f"{state} | Prox: {prox[:5]} | Motors: ({left}, {right})")
-
-                    await client.sleep(0.1)
-
-            finally:
-                node.v.motor.left.target = 0
-                node.v.motor.right.target = 0
-                node.flush()
-                print("Motors stopped.")
+                    print("Motors stopped.")
 
         client.run_async_program(test_sensors)
