@@ -19,12 +19,13 @@ How we work: each of us owns one file and writes a few functions in it. The name
 
 ## The parking lot
 
-- Camera fixed above, looking down. Two or three A0 sheets.
-- Grid of **20 cm × 20 cm cells**, drawn with thin blue pen lines.
-- Wide **black line** around the lot: the Thymio must never cross it.
+- One A0 sheet (118.9 × 84.1 cm), landscape, printed from `parking_lot_A0.pdf`: a lot of **5 × 4 cells**, 100 × 80 cm, centred on the sheet.
+- **Camera** fixed above, looking down, with the whole black border in the picture. It is placed so that the always-free row is at the **bottom of the image**. It does not need to be perfectly straight, vision straightens the image with the four corners, but it must not be turned around: the corner at the bottom left of the image is the origin.
+- Grid of **20 cm × 20 cm cells**, printed as thin blue lines.
+- **Black band, 2 cm wide,** around the lot: the Thymio must never cross it. Its inside edge is the edge of the lot.
 - **Cars** are black 3D boxes: black so the camera sees them, 3D so the Thymio's sensors see them. Make them smaller than a cell (about 15 cm) to leave room to turn.
 - **Target** is a piece of red paper.
-- **Thymio** carries a coloured rectangle with a small dot towards the front, giving position and heading.
+- **Thymio** carries a marker on its top: a coloured rectangle, long side along the driving direction, with a small dot of another colour at the **front** end. The rectangle gives the position, the dot gives the heading. The two colours must be none of black (cars, border), red (target), blue (lines) or white (paper). Green rectangle, magenta dot, as in Joshua's test images.
 - **Added obstacle** must not be black, so that the camera does not take it for a car and only the sensors detect it.
 - Bottom row is always free. Any free cell can be driven through, aisle or empty bay.
 
@@ -48,6 +49,9 @@ src/
     robot.py             Antoine    (link with the Thymio)
     local_nav.py         Laurent
 data/                    recorded images and logs, used by the notebook
+tools/                   small helper programs, run from the root with python -m tools.<name>
+    make_lot_pdf.py      draws parking_lot_A0.pdf from the sizes in common.py
+parking_lot_A0.pdf       the lot, to print on one A0 sheet at 100 %
 ```
 
 `main.py` is Antoine's *(to confirm)*. `common.py`, `stubs.py` and this README belong to all four and only change when we agree.
@@ -75,30 +79,46 @@ It prints three lines with the example pose, goal and path. Then open your own f
 ## Conventions
 
 - **Units:** metres, radians, seconds. Wheel speeds are in Thymio units (about −500 to 500).
-- **Frame:** origin at the bottom-left inside corner of the black border. x to the right, y up.
-- **Heading:** `theta = 0` points along +x, positive counter-clockwise, between −π and π.
-- **Robot position:** the middle of the wheel axis, not the centre of the marker.
+- **Bottom of the lot:** the side of the row that is always free. Stand on that side and look at the lot: this is the view of every drawing in this README, and of the camera image.
+- **Frame:** origin at the bottom-left inside corner of the black border. The x axis runs along the bottom edge, to the right. The y axis runs along the left edge, up.
+- **Heading:** `theta` is the angle between the x axis and the direction the robot faces. `theta = 0` points along +x, positive counter-clockwise, between −π and π.
+- **Robot position:** the middle of the wheel axis, not the centre of the marker. Vision makes the correction if the marker is not right above it.
 - **Not visible:** `None`. Never an old value, never `(0, 0)`.
 
-Positions are real distances in metres, not a 0-to-1 scale and not cell numbers. `0.10` means 10 cm. On the example lot of 6 × 4 cells, x goes from 0 to 1.20 and y from 0 to 0.80:
+Positions are real distances in metres, not a 0-to-1 scale and not cell numbers. `0.10` means 10 cm. On our lot of 5 × 4 cells, x goes from 0 to 1.00 and y from 0 to 0.80:
 
 ```
 y (m)
-0.80 ┌─────┬─────┬─────┬─────┬─────┬─────┐
-     │     │     │     │     │ car │     │  row 0
-0.60 ├─────┼─────┼─────┼─────┼─────┼─────┤
-     │     │     │ car │     │GOAL │     │  row 1
-0.40 ├─────┼─────┼─────┼─────┼─────┼─────┤
-     │ car │     │ car │     │ car │     │  row 2
-0.20 ├─────┼─────┼─────┼─────┼─────┼─────┤
-     │ROBOT│     │     │     │     │     │  row 3
-0.00 └─────┴─────┴─────┴─────┴─────┴─────┘
-     0    0.20  0.40  0.60  0.80  1.00  1.20   x (m)
+0.80 ┌─────┬─────┬─────┬─────┬─────┐
+     │     │     │     │     │ car │  row 0
+0.60 ├─────┼─────┼─────┼─────┼─────┤
+     │     │     │ car │     │GOAL │  row 1
+0.40 ├─────┼─────┼─────┼─────┼─────┤
+     │ car │     │ car │     │ car │  row 2
+0.20 ├─────┼─────┼─────┼─────┼─────┤
+     │ROBOT│     │     │     │     │  row 3
+0.00 └─────┴─────┴─────┴─────┴─────┘
+     0    0.20  0.40  0.60  0.80  1.00   x (m)
 ```
 
 - The robot is at `(0.10, 0.10)`: the centre of the bottom-left cell, 10 cm from the left edge and 10 cm from the bottom.
 - The goal is at `(0.90, 0.50)`: the centre of the cell in row 1, column 4.
 - A pose has a third number, the heading: `0.0` faces right, about `1.57` (π/2) faces the top of the lot.
+
+The four headings to remember:
+
+| The robot faces | `theta` |
+|---|---|
+| right (+x) | `0` |
+| the top of the lot (+y) | π/2 ≈ `1.57` |
+| left (−x) | π ≈ `3.14` |
+| the bottom of the lot (−y) | −π/2 ≈ `−1.57` |
+
+Turning left makes `theta` grow, turning right makes it shrink.
+
+How the heading is measured: it is the direction from the centre of the rectangle to the dot, `theta = atan2(y_dot - y_centre, x_dot - x_centre)`, with both points **already in metres**. Not in pixels: in an image the row number grows downwards, which flips the sign of the angle.
+
+Quick test for vision: put the Thymio in the bottom-left cell facing right, `cam_pose` must be close to `(0.10, 0.10, 0.0)`. Turn it by hand to face the top of the lot: the third number must go to about `1.57`, not `−1.57`.
 
 The grid is in cells because cars fill cells. Positions are in metres because the robot is almost never exactly at the centre of a cell, and the controller and the filter need to know by how much.
 
@@ -107,7 +127,7 @@ Shared constants in `src/common.py`:
 | Constant | Meaning | Value |
 |---|---|---|
 | `CELL` | side of a cell, in m | `0.20` |
-| `ROWS`, `COLS` | size of the grid | set when the lot is built |
+| `ROWS`, `COLS` | size of the grid | `4`, `5` |
 | `THYMIO_TO_MS` | m/s per Thymio speed unit | measured by Antoine |
 | `WHEEL_BASE` | distance between the wheels, in m | measured by Antoine |
 | `WAYPOINT_TOL` | distance at which a waypoint counts as reached, in m | chosen by Antoine |
@@ -238,10 +258,10 @@ If the obstacle closes the only way, `plan` gives back `[]` and the robot stops.
 
 ```python
 EXAMPLE_GRID = np.array([
-    [0, 0, 0, 0, 1, 0],
-    [0, 0, 1, 0, 0, 0],
-    [1, 0, 1, 0, 1, 0],
-    [0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1],
+    [0, 0, 1, 0, 0],
+    [1, 0, 1, 0, 1],
+    [0, 0, 0, 0, 0],
 ])
 EXAMPLE_POSE = (0.10, 0.10, 0.0)          # bottom-left cell, facing +x
 EXAMPLE_GOAL = (0.90, 0.50)               # row 1, column 4
@@ -312,7 +332,7 @@ A block is ready when it gives the right values on the shared example.
 
 ## To check or decide
 
-- **Robot marker:** a printed ArUco marker read with OpenCV would give position and heading in one call, instead of the coloured rectangle and dot. Less code, and less sensitive to lighting. Joshua to decide.
+- **Robot marker:** a printed ArUco marker read with OpenCV would give position and heading in one call, instead of the coloured rectangle and dot. Less code, and less sensitive to lighting. Joshua to decide. Either way, the frame and the meaning of `theta` above stay the same.
 - **Blue pen lines:** can the ground sensors see them? Probably not: they measure infrared reflection, and a thin line is easy to miss. If they can, counting line crossings could help when the camera is hidden; until then it is not part of the plan.
 - **Turning room:** is a 20 cm cell enough to turn in place next to our boxes? By calculation there are about 3 cm to spare next to a 15 cm box, so the robot must reach each cell centre to within 2 or 3 cm. To test on the real lot in the first week; if it is too tight, make the boxes smaller.
 - **Blocked aisle:** an obstacle in an aisle with cars on both sides cannot be driven around; the robot steers away and takes another lane.
