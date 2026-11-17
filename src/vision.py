@@ -2,7 +2,7 @@
 
 From a camera image, find the cars, the robot and the target.
 
-Detection works on test images; real camera, automatic corners and to_pixels still to do
+Detection works on the real camera, to_pixels and threshold tuning still to do
 """
 
 import numpy as np
@@ -15,11 +15,15 @@ LOT_W_PX = int(round(common.COLS * common.CELL * PX_PER_M))
 LOT_H_PX = int(round(common.ROWS * common.CELL * PX_PER_M))
 CELL_PX = int(round(common.CELL * PX_PER_M))
 CAR_THRESHOLD = 0.1
-BLACK_V_MAX=90  #Threshold for black boxes, 30-70 maybe depends on lighting
+BLACK_V_MAX=90  #Threshold for black boxes, 30-90 maybe depends on lighting
+RED1_LO, RED1_HI   = (172, 120, 70), (180, 255, 255)
+RED2_LO, RED2_HI   = (0, 120, 70),   (10, 255, 255)
+GREEN_LO, GREEN_HI = (35, 50, 70),   (85, 255, 255)
+DOT_LO, DOT_HI     = (145, 80, 70),  (170, 255, 255)
 
 MARKER_D    = 0.0     # marker centre ahead of the wheel axis, m
 
-CORNERS = [(50, 50), (1250, 50), (1250, 850), (50, 850)]
+#CORNERS = [(50, 50), (1250, 50), (1250, 850), (50, 850)]
 
 last_corners = None
 
@@ -59,10 +63,14 @@ def detect_corners(frame):
 
     if best is None:
         return None
-
+    # the lot must fill a good part of the image, otherwise it's not the border
+    h, w = frame.shape[:2]
+    if best_area < 0.2 * h * w:
+        return None
     # simplify the outline to its corners
-    eps = 0.02 * cv2.arcLength(best, True)
-    approx = cv2.approxPolyDP(best, eps, True)
+    hull = cv2.convexHull(best)
+    eps = 0.02 * cv2.arcLength(hull, True)
+    approx = cv2.approxPolyDP(hull, eps, True)
     if len(approx) != 4:
         return None
     pts = approx.reshape(4, 2)
@@ -110,18 +118,23 @@ def largest_blob_centre(mask, min_area=100):
     
     return u,v
 
+def clean(mask):
+    """Remove small specks of noise from a mask."""
+    kernel = np.ones((5, 5), np.uint8)
+    return cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+
 def find_goal(top):
     """Find the goal in the image."""
     hsv = cv2.cvtColor(top, cv2.COLOR_BGR2HSV)
-    lower_red1 = np.array([160, 150, 70])
-    upper_red1 = np.array([180, 255, 255])
-    lower_red2 = np.array([0, 150, 70])
-    upper_red2 = np.array([10, 255, 255])
+    lower_red1 = np.array(RED1_LO)
+    upper_red1 = np.array(RED1_HI)
+    lower_red2 = np.array(RED2_LO)
+    upper_red2 = np.array(RED2_HI)
     mask1=cv2.inRange(hsv, lower_red1, upper_red1)
     mask2=cv2.inRange(hsv, lower_red2, upper_red2)
 
     mask = cv2.bitwise_or(mask1, mask2)
-
+    mask=clean(mask)
     centre = largest_blob_centre(mask)
     if centre is None:
         return None
@@ -135,6 +148,7 @@ def find_grid(top):
     lower_bound = np.array([0, 0, 0])
     upper_bound = np.array([180, 255, BLACK_V_MAX])
     mask=cv2.inRange(hsv, lower_bound, upper_bound)
+    mask=clean(mask)
     grid = np.zeros((common.ROWS, common.COLS), dtype=int)
     for row in range(common.ROWS):
         for col in range(common.COLS):
@@ -157,12 +171,14 @@ def find_marker(top):
     #Green rectangle as marker and magenta circle as front marker
     hsv = cv2.cvtColor(top, cv2.COLOR_BGR2HSV)
 
-    lower_green = np.array([35, 50, 70])
-    upper_green = np.array([85, 255, 255])
-    lower_magenta = np.array([145, 80, 70])
-    upper_magenta = np.array([170, 255, 255])
+    lower_green = np.array(GREEN_LO) 
+    upper_green = np.array(GREEN_HI)
+    lower_magenta = np.array(DOT_LO)
+    upper_magenta = np.array(DOT_HI)
     mask_green=cv2.inRange(hsv, lower_green, upper_green)
+    mask_green=clean(mask_green)
     mask_magenta=cv2.inRange(hsv, lower_magenta, upper_magenta)
+    #Maybe clean the magenta mask too, but it is small and might be removed by cleaning
 
     centre_marker=largest_blob_centre(mask_green)
     centre_circle=largest_blob_centre(mask_magenta)
@@ -218,17 +234,15 @@ def detect(frame):
         return None, None, None
 
     corners = detect_corners(frame)
-    print("frame:", frame.shape, "corners found:", corners is not None)
     if corners is not None:
         last_corners = corners
     if last_corners is None:          # lot never seen yet
         return None, None, None
     
     top = warp_to_lot(frame, last_corners)
-    grid = find_grid(top)
+    grid = find_grid(top) if corners is not None else None
     robot_pose = find_robot(top)
     goal = find_goal(top)
-    # TODO:  grid = None when the lot is not seen.
     return grid, robot_pose, goal
 
 
@@ -242,10 +256,15 @@ def to_pixels(x, y):
     Gives back (u, v): column and row of the pixel, as OpenCV drawing
     functions expect. None as long as the lot has never been seen.
     """
-    # TODO (Joshua): real conversion, with what detect() found.
-    u = round(x / (common.COLS * common.CELL) * 640)
-    v = round(480 - y / (common.ROWS * common.CELL) * 480)
-    return u, v
+    if last_corners is None:                 # lot never seen
+        return None
+    # warped image -> camera image (dst and src swapped compared to warp_to_lot)
+    lot = np.float32([[0, 0], [LOT_W_PX, 0], [LOT_W_PX, LOT_H_PX], [0, LOT_H_PX]])
+    M_inv = cv2.getPerspectiveTransform(lot, np.float32(last_corners))
+    # metres -> warped pixels (inverse of px_to_m)
+    pt = np.float32([[[x * PX_PER_M, LOT_H_PX - y * PX_PER_M]]])
+    u, v = cv2.perspectiveTransform(pt, M_inv)[0][0]
+    return int(round(u)), int(round(v))
 
 if __name__ == "__main__":
     frame = cv2.imread("data/captured_image3.png")
