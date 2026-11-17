@@ -14,6 +14,7 @@ import numpy as np
 from src import common, vision
 
 WINDOW = "Thymio parking"
+MAX_WINDOW = (960, 640)       # largest size of the window when it opens, in pixels
 
 # True: draw only the cars, the path, the robot and the target over the image.
 # False: also the grid, the cars, the camera pose, the uncertainty and a legend.
@@ -48,8 +49,25 @@ def show(frame, grid, goal, path, cam_pose, pose, cov):
 
     Gives back nothing.
     """
-    cv2.imshow(WINDOW, _draw(frame, grid, goal, path, cam_pose, pose, cov))
+    img = _draw(frame, grid, goal, path, cam_pose, pose, cov)
+    _open_window(img.shape[1], img.shape[0])
+    cv2.imshow(WINDOW, img)
     cv2.waitKey(1)
+
+
+_window_open = False
+
+
+def _open_window(width, height):
+    """Open the window once, small enough to fit on the screen, keeping the
+    proportions of the image. It can then be resized with the mouse."""
+    global _window_open
+    if _window_open:
+        return
+    cv2.namedWindow(WINDOW, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
+    scale = min(1.0, MAX_WINDOW[0] / width, MAX_WINDOW[1] / height)
+    cv2.resizeWindow(WINDOW, int(width * scale), int(height * scale))
+    _window_open = True
 
 
 def _draw(frame, grid, goal, path, cam_pose, pose, cov):

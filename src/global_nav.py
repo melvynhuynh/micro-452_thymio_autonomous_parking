@@ -2,9 +2,9 @@
 
 Find the path from the robot to the target that avoids the cars of the grid.
 
-The search is A* on the grid of cells, with four neighbours and a small cost
-for each change of direction, so that among the shortest paths the robot gets
-the one with the fewest turns in place. Dijkstra and breadth-first search are
+The search is A* on the grid of cells, with four neighbours. It always gives
+a shortest path; among the shortest paths, a tiny cost for each change of
+direction picks the one with the fewest turns in place. Dijkstra and breadth-first search are
 the same search with other settings (see _search and METHODS).
 """
 
@@ -139,7 +139,10 @@ def _walk_back(came_from, last):
 # --- Settings of the search ---------------------------------------------------
 
 _NEAR_CAR_COST = 2     # extra cost to drive into a cell that touches a car
-_TURN_COST = 0.5       # extra cost of one change of direction, in moves
+# Extra cost of one change of direction, in moves. Kept tiny so that it only
+# chooses between paths of the same length: on a grid two paths differ by at
+# least 2 moves, so a longer path would need 200 turns more to win.
+_TURN_COST = 0.01
 
 
 def _cost_one(grid, cell):
@@ -175,7 +178,7 @@ METHODS = {
     "astar_turns":   (_cost_one,       _h_manhattan, True),
 }
 
-# Variant used by plan(). Chosen with the benchmark (155 test lots): same
-# length as the shortest path, about a quarter fewer turns than plain A*, and
-# half the cells explored by breadth-first search.
+# Variant used by plan(). Chosen with the benchmark (155 test lots): always a
+# shortest path, fewer turns than plain A*, and half the cells explored by
+# breadth-first search.
 METHOD = "astar_turns"
