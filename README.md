@@ -19,13 +19,13 @@ How we work: each of us owns one file and writes a few functions in it. The name
 
 ## The parking lot
 
-- One A0 sheet (118.9 × 84.1 cm), landscape, printed from `parking_lot_A0.pdf`: a lot of **5 × 4 cells**, 100 × 80 cm, centred on the sheet.
+- One A0 sheet (118.9 × 84.1 cm), landscape, printed from `print/parking_lot_A0.pdf`: a lot of **5 × 4 cells**, 100 × 80 cm, centred on the sheet.
 - **Camera** fixed above, looking down, with the whole black border in the picture. It is placed so that the always-free row is at the **bottom of the image**. It does not need to be perfectly straight, vision straightens the image with the four corners, but it must not be turned around: the corner at the bottom left of the image is the origin.
 - Grid of **20 cm × 20 cm cells**, printed as thin blue lines.
 - **Black band, 2 cm wide,** around the lot: the Thymio must never cross it. Its inside edge is the edge of the lot.
-- **Cars** are black 3D boxes: black so the camera sees them, 3D so the Thymio's sensors see them. Make them smaller than a cell (about 15 cm) to leave room to turn.
-- **Target** is a piece of red paper.
-- **Thymio** carries a marker on its top: a coloured rectangle, long side along the driving direction, with a small dot of another colour at the **front** end. The rectangle gives the position, the dot gives the heading. The two colours must be none of black (cars, border), red (target), blue (lines) or white (paper). Green rectangle, magenta dot, as in Joshua's test images.
+- **Cars** are black 3D boxes: black so the camera sees them, 3D so the Thymio's sensors see them. 15 × 15 cm, 6 cm high: smaller than a cell to leave room to turn. Pattern to print, cut and fold: `print/car_box_A3.pdf`, one A3 sheet per car.
+- **Target** is a red square of paper, 10 × 10 cm: `print/target_A4.pdf`.
+- **Thymio** carries a marker on its top: a coloured rectangle, long side along the driving direction, with a small dot of another colour at the **front** end. The rectangle gives the position, the dot gives the heading. The two colours must be none of black (cars, border), red (target), blue (lines) or white (paper). Green rectangle 7 × 5 cm, magenta dot 2 cm wide at the front, as in Joshua's test images; its centre right above the wheel axis. Six to cut out in `print/marker_A4.pdf`.
 - **Added obstacle** must not be black, so that the camera does not take it for a car and only the sensors detect it.
 - Bottom row is always free. Any free cell can be driven through, aisle or empty bay.
 
@@ -50,8 +50,13 @@ src/
     local_nav.py         Laurent
 data/                    recorded images and logs, used by the notebook
 tools/                   small helper programs, run from the root with python -m tools.<name>
-    make_lot_pdf.py      draws parking_lot_A0.pdf from the sizes in common.py
-parking_lot_A0.pdf       the lot, to print on one A0 sheet at 100 %
+    make_print_pdfs.py   draws every PDF of print/ from the sizes in common.py
+print/                   what we print, always at 100 % (each sheet has a 10 cm bar to check)
+    parking_lot_A0.pdf   the empty lot, one A0 sheet
+    test_map_A0.pdf      the lot with the shared example printed on it: cars, Thymio, target
+    car_box_A3.pdf       pattern of one car box
+    target_A4.pdf        the red target
+    marker_A4.pdf        markers for the top of the Thymio
 ```
 
 `main.py` is Antoine's *(to confirm)*. `common.py`, `stubs.py` and this README belong to all four and only change when we agree.
@@ -294,6 +299,7 @@ A block is ready when it gives the right values on the shared example.
 - [ ] Find the robot marker → `cam_pose`; the dot gives the heading.
 - [ ] Detect colours in HSV, not RGB, and set the thresholds under the lighting of the demo room.
 - [ ] Give back `None` for whatever is hidden.
+- [ ] On a camera photo of `print/test_map_A0.pdf`, `detect` gives back the shared example of `common.py`.
 - [ ] `to_pixels` for the live display *(to confirm)*.
 
 **Global navigation — Melvyn**
