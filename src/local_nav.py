@@ -29,7 +29,7 @@ TURN_REVERSE_SPEED = 30
 CLEAR_LIMIT = 5
 
 # TODO: Calibrate this threshold on the actual parking surface.
-GROUND_BLACK_THRESHOLD = None
+GROUND_BLACK_THRESHOLD = None #200 ish I think
 
 
 # =======================================================
