@@ -3,10 +3,11 @@
             LOCAL NAVIGATION -- local_nav.py
 =========================================================
 
-Inputs:
+Inputs: prox, ground
 
-
-Outputs:
+Outputs: None          nothing is in the way: motion control keeps the wheels.
+        (left, right)  wheel speeds, in Thymio units, to steer away from the
+                       obstacle. On the black border: (0, 0).
 
 
 Author: Laurent Duret
