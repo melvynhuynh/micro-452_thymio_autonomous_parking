@@ -185,7 +185,7 @@ Each file exposes exactly these functions. What happens inside is the owner's bu
 | `robot.py` | `connect()` | nothing |
 | `robot.py` | `read()` | `prox, ground, wheel_speeds` |
 | `robot.py` | `set_speed(left, right)` | nothing |
-| `local_nav.py` | `avoid(prox, ground)` | `None`, or `(left, right)` |
+| `local_nav.py` | `avoid(prox, ground, threshold)` | `None`, or `(left, right)` |
 | `visualization.py` | `show(frame, grid, goal, path, cam_pose, pose, cov)` | nothing; refreshes the display |
 
 - **`detect`**: if `frame` is `None`, it gives back `None, None, None`.
@@ -193,7 +193,13 @@ Each file exposes exactly these functions. What happens inside is the owner's bu
 - **`update`**: `dt` is the time since the last call, in seconds. First version: gives back `cam_pose, None`. Final version: an extended Kalman filter that predicts with `wheel_speeds` and corrects with `cam_pose` when it is not `None`.
 - **`plan`**: gives back `[]` if the robot or the goal is outside the lot or on a car, or if no path exists.
 - **`go_to`**: `left` and `right` are wheel speeds; `reached` is `True` when the robot is within `WAYPOINT_TOL` of the waypoint.
-- **`avoid`**: `None` means nothing is in the way. Wheel speeds mean local navigation takes over. On the black border it gives back `(0, 0)`. It may keep a variable in its file between two calls, so that it does not give back `None` the instant the sensors lose an obstacle that is still beside the robot.
+- **`avoid`**: `threshold` sets the sensor detection threshold.
+  `None` means nothing is in the way. Wheel speeds mean local
+  navigation takes over. On the black border it gives back `(0, 0)`.
+  The threshold is selected by the main loop according to the
+  current navigation state. It may keep a variable in its file
+  between two calls, so that it does not give back `None` the
+  instant the sensors lose an obstacle that is still beside the robot.
 - **`show`**: draws over the camera image `frame`, not on a separate graph: grid, target, path, camera pose, filtered pose and its uncertainty `cov`. `frame` and `cov` can be `None`.
 
 ## How the blocks run together
@@ -219,7 +225,13 @@ frame                      = vision.read_frame()
 grid, cam_pose, goal       = vision.detect(frame)
 prox, ground, wheel_speeds = robot.read()
 pose, cov                  = localization.update(cam_pose, wheel_speeds, dt)
-override                   = local_nav.avoid(prox, ground)
+if state == FOLLOW:
+    threshold = FOLLOW_THRESHOLD #already 3000
+elif state == PARKING:
+    threshold = PARKING_THRESHOLD #TBD 
+
+override = local_nav.avoid(prox, ground, threshold)
+
 # the state decides what goes to robot.set_speed(...)
 visualization.show(frame, grid, goal, path, cam_pose, pose, cov)
 ```
@@ -230,7 +242,8 @@ The main loop remembers the last `grid` and the last `goal` that were not `None`
 |---|---|---|
 | `PLAN` | Robot stopped; `global_nav.plan` | path found → `FOLLOW` |
 | `FOLLOW` | `motion.go_to` the current waypoint | `override` not `None` → `AVOID` · grid or goal changed, or robot far from the path → `PLAN` · last waypoint reached → `DONE` |
-| `AVOID` | The cell just in front of the robot is remembered as blocked; `override` goes to the wheels | `override` is `None` again → `PLAN` from the current pose |
+| `AVOID` | A tiny obstacle is detected (NOT blocking the grid) and avoided| `override` is `None` again → `PLAN` from the current pose |
+| `PARKING`| Same as `AVOID` but with a different threshold | ... |
 | `DONE` | Robot stopped on the target | goal moved → `PLAN` |
 
 In every state, `pose` is `None` → stop.
