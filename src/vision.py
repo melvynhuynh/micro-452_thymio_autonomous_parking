@@ -15,11 +15,64 @@ LOT_W_PX = int(round(common.COLS * common.CELL * PX_PER_M))
 LOT_H_PX = int(round(common.ROWS * common.CELL * PX_PER_M))
 CELL_PX = int(round(common.CELL * PX_PER_M))
 CAR_THRESHOLD = 0.1
-BLACK_V_MAX=50  #Threshold for black boxes, 30-70 maybe depends on lighting
+BLACK_V_MAX=90  #Threshold for black boxes, 30-70 maybe depends on lighting
 
 MARKER_D    = 0.0     # marker centre ahead of the wheel axis, m
 
 CORNERS = [(50, 50), (1250, 50), (1250, 850), (50, 850)]
+
+last_corners = None
+
+USE_CAMERA = True
+
+CAP = cv2.VideoCapture(1, cv2.CAP_DSHOW) if USE_CAMERA else None # 0 = laptop webcam, 1 = usually the USB camera
+
+def detect_corners(frame):
+    """Detect the inner corners of the black border in the camera image.
+    frame: image from read_frame(), or None.
+    Gives back four points (u, v) in pixels, ordered top-left, top-right,
+    bottom-right, bottom-left, or None if the corners cannot be found.
+    """
+    if frame is None:
+        return None
+
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    _, mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+    contours, hierarchy = cv2.findContours(mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+    if hierarchy is None:            # no contours at all
+        return None
+
+    # largest hole = inside of the black border
+    best = None
+    best_area = 0
+    for i in range(len(contours)):
+        if hierarchy[0][i][3] == -1:     # no parent: outer edge, not a hole
+            continue
+        area = cv2.contourArea(contours[i])
+        if area > best_area:
+            best_area = area
+            best = contours[i]
+
+    if best is None:
+        return None
+
+    # simplify the outline to its corners
+    eps = 0.02 * cv2.arcLength(best, True)
+    approx = cv2.approxPolyDP(best, eps, True)
+    if len(approx) != 4:
+        return None
+    pts = approx.reshape(4, 2)
+
+    # order: top-left, top-right, bottom-right, bottom-left
+    s = pts.sum(axis=1)              # u + v
+    d = pts[:, 1] - pts[:, 0]        # v - u
+    tl = pts[np.argmin(s)]
+    br = pts[np.argmax(s)]
+    tr = pts[np.argmin(d)]
+    bl = pts[np.argmax(d)]
+
+    return [tuple(tl), tuple(tr), tuple(br), tuple(bl)]
 
 def warp_to_lot(frame, corners):
     """Warp the camera image to a top-down view of the lot."""
@@ -101,10 +154,10 @@ def find_marker(top):
     #Green rectangle as marker and magenta circle as front marker
     hsv = cv2.cvtColor(top, cv2.COLOR_BGR2HSV)
 
-    lower_green = np.array([40, 150, 70])
-    upper_green = np.array([80, 255, 255])
-    lower_magenta = np.array([140, 150, 70])
-    upper_magenta = np.array([165, 255, 255])
+    lower_green = np.array([35, 50, 70])
+    upper_green = np.array([85, 255, 255])
+    lower_magenta = np.array([145, 80, 70])
+    upper_magenta = np.array([170, 255, 255])
     mask_green=cv2.inRange(hsv, lower_green, upper_green)
     mask_magenta=cv2.inRange(hsv, lower_magenta, upper_magenta)
 
@@ -136,8 +189,12 @@ def read_frame():
     Gives back the image (as OpenCV reads it), or None if the camera gives
     nothing.
     """
-    # TODO (Joshua): read the real camera.
-    return cv2.imread("data/test_lot_0.png")
+    if not USE_CAMERA:
+        return cv2.imread("data/captured_image3.png")
+    ok, frame = CAP.read()
+    if not ok:
+        return None
+    return frame
 
 
 def detect(frame):
@@ -153,14 +210,21 @@ def detect(frame):
         goal      (x, y) centre of the red paper, in metres.
                   None when the red paper is not found.
     """
+    global last_corners 
     if frame is None:
         return None, None, None
+
+    corners = detect_corners(frame)
+    if corners is not None:
+        last_corners = corners
+    if last_corners is None:          # lot never seen yet
+        return None, None, None
     
-    top = warp_to_lot(frame, CORNERS)
+    top = warp_to_lot(frame, corners)
     grid = find_grid(top)
     robot_pose = find_robot(top)
     goal = find_goal(top)
-    # TODO: find corners automatically; grid = None when the lot is not seen.
+    # TODO:  grid = None when the lot is not seen.
     return grid, robot_pose, goal
 
 
@@ -180,11 +244,27 @@ def to_pixels(x, y):
     return u, v
 
 if __name__ == "__main__":
-    frame = cv2.imread("data/test_lot_1.png")
-    top = warp_to_lot(frame, CORNERS)
-    print(top.shape)                 
-    print(find_goal(top))
+    frame = cv2.imread("data/captured_image3.png")
+    corners = detect_corners(frame)
+    if corners is None:
+        print("Corners not found")
+        cv2.imshow("frame", frame)
+        cv2.waitKey(0)
+        raise SystemExit
+    print(corners)
+
+    # draw the corners on a copy, numbered 0-3
+    shown = frame.copy()
+    for k, p in enumerate(corners):
+        cv2.circle(shown, (int(p[0]), int(p[1])), 6, (0, 0, 255), -1)
+        cv2.putText(shown, str(k), (int(p[0]) + 8, int(p[1])),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+    cv2.imshow("corners", shown)
+
+    top = warp_to_lot(frame, corners)   # clean frame, no dots
+    print("Top shape:", top.shape)
+    print("Goal:", find_goal(top))
     print(find_grid(top))
-    print(find_robot(top))
+    print("Robot:", find_robot(top))
     cv2.imshow("top", top)
     cv2.waitKey(0)
