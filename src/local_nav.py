@@ -5,12 +5,14 @@
 =========================================================
 
 Inputs:
-    prox:   7 horizontal proximity sensor values
-    ground: 2 ground sensor values (left, right)
+    prox:      7 horizontal proximity sensor values
+    ground:    2 ground sensor values (left, right)
+    threshold: horizontal obstacle detection threshold
 
 Outputs:
-    None       Local navigation does not take control.
-    (left, right)  Local navigation overrides motor commands.
+    None              Local navigation does not take control.
+    (left, right)     Local navigation overrides motor commands.
+    (0, 0)            Black border detected.
 
 Author: Laurent Duret
 Date: 17 November 2026
@@ -20,7 +22,10 @@ Date: 17 November 2026
 # PARAMETERS
 # =======================================================
 
-PROX_THRESHOLD = 3000
+FOLLOW_THRESHOLD = 3000
+
+# TODO: Calibrate this threshold on the actual parking surface. !!!
+PARKING_THRESHOLD = 4600
 
 FORWARD_SPEED = 80
 TURN_SPEED = 70
@@ -28,8 +33,7 @@ TURN_REVERSE_SPEED = 30
 
 CLEAR_LIMIT = 5
 
-# TODO: Calibrate this threshold on the actual parking surface.
-GROUND_BLACK_THRESHOLD = None #200 ish I think
+GROUND_BLACK_THRESHOLD = 400  #full black = less than 200
 
 
 # =======================================================
@@ -45,22 +49,22 @@ _direction = "right"
 # HELPER FUNCTIONS
 # =======================================================
 
-def obstacle_detected(prox):
+def obstacle_detected(prox, threshold):
     """Detect obstacles using the five front sensors."""
 
-    sensors = [value > PROX_THRESHOLD for value in prox[:5]]
+    sensors = [value > threshold for value in prox[:5]]
     return any(sensors), sensors
 
 
-def choose_direction(prox):
+def choose_direction(prox, threshold):
     """Choose the direction with the least detected obstacle."""
 
     left_strength = sum(
-        max(0, value - PROX_THRESHOLD) for value in prox[0:2]
+        max(0, value - threshold) for value in prox[0:2]
     )
 
     right_strength = sum(
-        max(0, value - PROX_THRESHOLD) for value in prox[3:5]
+        max(0, value - threshold) for value in prox[3:5]
     )
 
     if left_strength > right_strength:
@@ -87,9 +91,14 @@ def motor_command(direction):
 # MAIN LOCAL NAVIGATION INTERFACE
 # =======================================================
 
-def avoid(prox, ground):
+def avoid(prox, ground, threshold):
     """
     Decide whether local navigation must override motor control.
+
+    Args:
+        prox: 7 horizontal proximity sensor values.
+        ground: 2 ground sensor values.
+        threshold: horizontal obstacle detection threshold.
 
     Returns:
         None: no obstacle, normal motion can continue.
@@ -105,20 +114,20 @@ def avoid(prox, ground):
             return (0, 0)
 
     # 2. Horizontal obstacle detection
-    obstacle, sensors = obstacle_detected(prox)
+    obstacle, sensors = obstacle_detected(prox, threshold)
 
     # 3. Start obstacle avoidance
     if not _avoiding and obstacle:
         _avoiding = True
         _clear_count = 0
-        _direction = choose_direction(prox)
+        _direction = choose_direction(prox, threshold)
 
     # 4. Update avoidance state
     if _avoiding:
 
         if obstacle:
             _clear_count = 0
-            _direction = choose_direction(prox)
+            _direction = choose_direction(prox, threshold)
 
         else:
             _clear_count += 1
@@ -145,10 +154,18 @@ def reset():
     _clear_count = 0
     _direction = "right"
 
+
+# =======================================================
+# TEST MODULE
+# =======================================================
+
 from tdmclient import ClientAsync
 
-# Test module
+
 if __name__ == "__main__":
+
+    # Select the threshold to test here.
+    TEST_THRESHOLD = PARKING_THRESHOLD
 
     with ClientAsync() as client:
 
@@ -165,10 +182,9 @@ if __name__ == "__main__":
 
                 print("Thymio connected!")
                 print("Starting obstacle avoidance test...")
+                print(f"Detection threshold: {TEST_THRESHOLD}")
 
-                avoiding = False
-                clear_count = 0
-                direction = "right"
+                reset()
 
                 try:
                     while True:
@@ -176,11 +192,11 @@ if __name__ == "__main__":
                         prox = list(node.v.prox.horizontal)
                         ground = list(node.v.prox.ground.delta)
 
-                        # Test fallback: assume global navigation commands forward
-                        left, right = motor_command("forward")
+                        # Simulate global navigation commanding forward.
+                        left, right = FORWARD_SPEED, FORWARD_SPEED
 
                         # Local navigation override
-                        override = avoid(prox, ground)
+                        override = avoid(prox, ground, TEST_THRESHOLD)
 
                         if override is not None:
                             left, right = override
@@ -192,7 +208,12 @@ if __name__ == "__main__":
                         node.v.motor.right.target = right
                         node.flush()
 
-                        print(f"{state} | Prox: {prox[:5]} | Motors: ({left}, {right})")
+                        print(
+                            f"{state} | "
+                            f"Prox: {prox[:5]} | "
+                            f"Motors: ({left}, {right}) | "
+                            f"Threshold: {TEST_THRESHOLD}"
+                        )
 
                         await client.sleep(0.1)
 
