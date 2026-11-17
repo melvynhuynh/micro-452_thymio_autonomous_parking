@@ -1,79 +1,75 @@
+
 """
 =========================================================
             LOCAL NAVIGATION -- local_nav.py
 =========================================================
 
-Inputs: prox, ground
+Inputs:
+    prox:   7 horizontal proximity sensor values
+    ground: 2 ground sensor values (left, right)
 
-Outputs: None          nothing is in the way: motion control keeps the wheels.
-        (left, right)  wheel speeds, in Thymio units, to steer away from the
-                       obstacle. On the black border: (0, 0).
-
+Outputs:
+    None       Local navigation does not take control.
+    (left, right)  Local navigation overrides motor commands.
 
 Author: Laurent Duret
-Date: 11 November 2026
-=========================================================
+Date: 17 November 2026
 """
 
-def avoid(prox, ground):
-    """Decide whether local navigation must take the wheels.
+# =======================================================
+# PARAMETERS
+# =======================================================
 
-    prox    list of 7 numbers, horizontal proximity sensors (see robot.read).
-    ground  list of 2 numbers, ground sensors, left then right.
-
-    Gives back:
-        None           nothing is in the way: motion control keeps the wheels.
-        (left, right)  wheel speeds, in Thymio units, to steer away from the
-                       obstacle. On the black border: (0, 0).
-
-    Give back None only once the robot is clear of the obstacle, not the
-    instant the sensors lose it. A variable kept in this file between two
-    calls can help. The main loop then plans a new path around the cell of
-    the obstacle.
-    """
-    # TODO (Laurent): real avoidance.
-    return None
-
-
-from tdmclient import ClientAsync
-
-
-# Detection parameters
 PROX_THRESHOLD = 3000
 
-# Motor speeds 
 FORWARD_SPEED = 80
 TURN_SPEED = 70
 TURN_REVERSE_SPEED = 30
 
-# Number of consecutive clear readings before resuming
 CLEAR_LIMIT = 5
 
+# TODO: Calibrate this threshold on the actual parking surface.
+GROUND_BLACK_THRESHOLD = None
+
+
+# =======================================================
+# INTERNAL STATE
+# =======================================================
+
+_avoiding = False
+_clear_count = 0
+_direction = "right"
+
+
+# =======================================================
+# HELPER FUNCTIONS
+# =======================================================
 
 def obstacle_detected(prox):
     """Detect obstacles using the five front sensors."""
 
     sensors = [value > PROX_THRESHOLD for value in prox[:5]]
-    obstacle = any(sensors)
-
-    return obstacle, sensors
+    return any(sensors), sensors
 
 
 def choose_direction(prox):
     """Choose the direction with the least detected obstacle."""
 
-    left_strength = sum(max(0, value - PROX_THRESHOLD)
-                        for value in prox[0:2])
+    left_strength = sum(
+        max(0, value - PROX_THRESHOLD) for value in prox[0:2]
+    )
 
-    right_strength = sum(max(0, value - PROX_THRESHOLD)
-                         for value in prox[3:5])
+    right_strength = sum(
+        max(0, value - PROX_THRESHOLD) for value in prox[3:5]
+    )
 
     if left_strength > right_strength:
         return "right"
     elif right_strength > left_strength:
         return "left"
     else:
-        return "right" #right by default
+        return "right"
+
 
 def motor_command(direction):
     """Return motor speeds according to the desired direction."""
@@ -84,8 +80,70 @@ def motor_command(direction):
     elif direction == "left":
         return -TURN_REVERSE_SPEED, FORWARD_SPEED
 
-    else:
-        return FORWARD_SPEED, FORWARD_SPEED
+    return FORWARD_SPEED, FORWARD_SPEED
+
+
+# =======================================================
+# MAIN LOCAL NAVIGATION INTERFACE
+# =======================================================
+
+def avoid(prox, ground):
+    """
+    Decide whether local navigation must override motor control.
+
+    Returns:
+        None: no obstacle, normal motion can continue.
+        (left, right): override motor commands.
+        (0, 0): black border detected.
+    """
+
+    global _avoiding, _clear_count, _direction
+
+    # 1. Ground detection (black border)
+    if GROUND_BLACK_THRESHOLD is not None:
+        if any(value < GROUND_BLACK_THRESHOLD for value in ground):
+            return (0, 0)
+
+    # 2. Horizontal obstacle detection
+    obstacle, sensors = obstacle_detected(prox)
+
+    # 3. Start obstacle avoidance
+    if not _avoiding and obstacle:
+        _avoiding = True
+        _clear_count = 0
+        _direction = choose_direction(prox)
+
+    # 4. Update avoidance state
+    if _avoiding:
+
+        if obstacle:
+            _clear_count = 0
+            _direction = choose_direction(prox)
+
+        else:
+            _clear_count += 1
+
+        # Resume normal navigation only after
+        # several consecutive clear readings.
+        if _clear_count >= CLEAR_LIMIT:
+            _avoiding = False
+            _clear_count = 0
+            return None
+
+        # 5. Override motor commands
+        return motor_command(_direction)
+
+    return None
+
+
+def reset():
+    """Reset internal navigation state."""
+
+    global _avoiding, _clear_count, _direction
+
+    _avoiding = False
+    _clear_count = 0
+    _direction = "right"
 
 from tdmclient import ClientAsync
 
@@ -118,30 +176,17 @@ if __name__ == "__main__":
                         prox = list(node.v.prox.horizontal)
                         ground = list(node.v.prox.ground.delta)
 
-                        obstacle, sensors = obstacle_detected(prox)
+                        # Test fallback: assume global navigation commands forward
+                        left, right = motor_command("forward")
 
-                        if not avoiding and obstacle:
-                            avoiding = True
-                            clear_count = 0
-                            direction = choose_direction(prox)
+                        # Local navigation override
+                        override = avoid(prox, ground)
 
-                        if avoiding:
-                            if obstacle:
-                                clear_count = 0
-                                direction = choose_direction(prox)
-                            else:
-                                clear_count += 1
-
-                            if clear_count >= CLEAR_LIMIT:
-                                avoiding = False
-                                clear_count = 0
-
-                        if avoiding:
-                            left, right = motor_command(direction)
-                            state = f"AVOIDING ({direction})"
+                        if override is not None:
+                            left, right = override
+                            state = "LOCAL NAV OVERRIDE"
                         else:
-                            left, right = motor_command("forward")
-                            state = "FORWARD"
+                            state = "GLOBAL NAV"
 
                         node.v.motor.left.target = left
                         node.v.motor.right.target = right
