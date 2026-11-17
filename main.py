@@ -15,7 +15,7 @@ from src import (vision, localization, global_nav, motion, robot, local_nav,
                  visualization)
 
 LOOP_PERIOD = 0.1   # seconds between two turns of the loop
-
+LOOP_COUNT = 100
 
 def main():
     robot.connect()
@@ -23,7 +23,7 @@ def main():
 
     # TODO (Antoine): replace this by the real loop and its four states, and
     # remember the cells blocked by an added obstacle (see the README).
-    for turn in range(3):
+    for turn in range(LOOP_COUNT):
         now = time.time()
         dt = now - last_time
         last_time = now

@@ -26,6 +26,9 @@ last_corners = None
 USE_CAMERA = True
 
 CAP = cv2.VideoCapture(1, cv2.CAP_DSHOW) if USE_CAMERA else None # 0 = laptop webcam, 1 = usually the USB camera
+if CAP is not None:
+    for _ in range(30):       # about 1 s: let auto-exposure settle
+        CAP.read()
 
 def detect_corners(frame):
     """Detect the inner corners of the black border in the camera image.
@@ -215,12 +218,13 @@ def detect(frame):
         return None, None, None
 
     corners = detect_corners(frame)
+    print("frame:", frame.shape, "corners found:", corners is not None)
     if corners is not None:
         last_corners = corners
     if last_corners is None:          # lot never seen yet
         return None, None, None
     
-    top = warp_to_lot(frame, corners)
+    top = warp_to_lot(frame, last_corners)
     grid = find_grid(top)
     robot_pose = find_robot(top)
     goal = find_goal(top)
