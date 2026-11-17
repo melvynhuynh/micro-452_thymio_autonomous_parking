@@ -8,8 +8,8 @@ import numpy as np
 # --- The parking lot ---------------------------------------------------------
 
 CELL = 0.20   # side of a cell, in metres
-ROWS = 4      # number of rows of the grid    (set when the lot is built)
-COLS = 6      # number of columns of the grid (set when the lot is built)
+ROWS = 4      # number of rows of the grid
+COLS = 5      # number of columns of the grid
 
 # --- The robot (to measure, Antoine) -----------------------------------------
 
@@ -35,10 +35,10 @@ def xy_to_cell(x, y):
 # The situation of the first sketch. The stubs give back these values.
 
 EXAMPLE_GRID = np.array([
-    [0, 0, 0, 0, 1, 0],
-    [0, 0, 1, 0, 0, 0],
-    [1, 0, 1, 0, 1, 0],
-    [0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1],
+    [0, 0, 1, 0, 0],
+    [1, 0, 1, 0, 1],
+    [0, 0, 0, 0, 0],
 ])
 EXAMPLE_POSE = (0.10, 0.10, 0.0)   # bottom-left cell, facing +x
 EXAMPLE_GOAL = (0.90, 0.50)        # row 1, column 4
