@@ -2,16 +2,42 @@
 
 The only file that talks to the robot: reads its sensors, sets its wheels.
 
-For now these functions are fake: no robot is needed. Replace what is inside
-them; keep their names, their inputs and what they give back (see the README).
+It uses the tdmclient library. Thymio Suite must be open and the Thymio
+plugged in (cable or dongle) before connect() is called.
+
+Always stop the wheels when a program ends, even after an error:
+
+    robot.connect()
+    try:
+        ...
+    finally:
+        robot.set_speed(0, 0)
 """
 
-from src import common
+client = None   # the link with Thymio Suite, set by connect()
+node = None     # the Thymio itself, set by connect()
+READY = 4       # status of a Thymio this program holds (tdmclient's number)
+
+# The variables of the Thymio that read() needs.
+VARIABLES = {"prox.horizontal", "prox.ground.delta",
+             "motor.left.speed", "motor.right.speed"}
 
 
 def connect():
     """Connect to the Thymio. Call it once, before anything else."""
-    # TODO (Antoine): real connection.
+    global client, node
+    # Imported here, so that the simulations run without the library.
+    import threading
+    from tdmclient import ClientAsync
+
+    client = ClientAsync()
+    # tdmclient reads the robot in a thread that never ends by itself, so a
+    # program would hang when it finishes. This closes the link first. (Not
+    # atexit: Python waits for the threads before running atexit.)
+    threading._register_atexit(client.disconnect)
+    node = client.aw(client.wait_for_node())        # waits until a Thymio is there
+    client.aw(node.lock())                          # nobody else drives it
+    client.aw(node.wait_for_variables(VARIABLES))   # first values received
 
 
 def read():
@@ -27,11 +53,28 @@ def read():
         wheel_speeds  (left, right) speeds measured by the Thymio, in Thymio
                       units.
     """
-    # TODO (Antoine): read the real robot.
-    return (list(common.EXAMPLE_PROX), list(common.EXAMPLE_GROUND),
-            common.EXAMPLE_WHEEL_SPEEDS)
+    client.process_waiting_messages()   # take in the latest values sent
+
+    # While this program holds the Thymio, the device manager says it is
+    # "ready" (4). Anything else means the link was lost, for example the USB
+    # cable came out: commands no longer reach the robot and the values below
+    # are frozen. Stop rather than drive blind.
+    if node.status != READY:
+        raise RuntimeError("Lost the link with the Thymio (USB cable "
+                           "unplugged?). Plug it back and start the program "
+                           "again.")
+
+    prox = list(node.var["prox.horizontal"])
+    ground = list(node.var["prox.ground.delta"])
+    wheel_speeds = (node.var["motor.left.speed"][0],
+                    node.var["motor.right.speed"][0])
+    return prox, ground, wheel_speeds
 
 
 def set_speed(left, right):
     """Set the speed of the two wheels, in Thymio units. (0, 0) stops."""
-    # TODO (Antoine): send to the real robot.
+    targets = {"motor.left.target": [round(left)],
+               "motor.right.target": [round(right)]}
+    # Sent at once, without waiting for the Thymio to answer: waiting takes
+    # about 0.1 s, the whole period of the main loop (measured 2026-11-17).
+    node.send_set_variables(targets)
