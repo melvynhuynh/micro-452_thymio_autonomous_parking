@@ -2,10 +2,14 @@
 
 Show, while the robot drives, what the system sees and believes: the grid,
 the target, the path given by global navigation, the camera pose and the
-filtered pose with its uncertainty, all drawn over the camera image.
+filtered pose with its uncertainty.
 
-Positions are in metres; vision.to_pixels(x, y) says where they are in the
-image, so this file never needs to know how the camera looks at the lot.
+Two layouts (SIDE_BY_SIDE):
+    True   the camera image on the left, a clean top-down map on the right.
+           The map has its own scale, so it is right even before
+           vision.to_pixels is exact.
+    False  everything drawn over the camera image; vision.to_pixels(x, y)
+           says where a point in metres is in the image.
 """
 
 import cv2
@@ -14,7 +18,13 @@ import numpy as np
 from src import common, vision
 
 WINDOW = "Thymio parking"
-MAX_WINDOW = (960, 640)       # largest size of the window when it opens, in pixels
+MAX_WINDOW = (1280, 640)      # largest size of the window when it opens, in pixels
+
+# True: camera image on the left, top-down map on the right.
+# False: everything drawn over the camera image.
+SIDE_BY_SIDE = True
+MAP_HEIGHT = 480              # height of each panel, in pixels
+GAP = 8                       # grey band between the two panels, in pixels
 
 # True: draw only the cars, the path, the robot and the target over the image.
 # False: also the grid, the cars, the camera pose, the uncertainty and a legend.
@@ -35,7 +45,8 @@ SIGMAS = 2                    # the ellipse holds about 86 % of the positions
 
 
 def show(frame, grid, goal, path, cam_pose, pose, cov):
-    """Refresh the live display, drawn over the camera image.
+    """Refresh the live display: camera and map side by side, or the map
+    drawn over the camera image (see SIDE_BY_SIDE).
 
     frame     image from vision.read_frame(), or None.
     grid      array of ROWS x COLS, 0 = free, 1 = car, or None.
@@ -49,7 +60,7 @@ def show(frame, grid, goal, path, cam_pose, pose, cov):
 
     Gives back nothing.
     """
-    img = _draw(frame, grid, goal, path, cam_pose, pose, cov)
+    img = _compose(frame, grid, goal, path, cam_pose, pose, cov)
     _open_window(img.shape[1], img.shape[0])
     cv2.imshow(WINDOW, img)
     cv2.waitKey(1)
@@ -70,17 +81,64 @@ def _open_window(width, height):
     _window_open = True
 
 
-def _draw(frame, grid, goal, path, cam_pose, pose, cov):
-    """The image show() displays. The frame itself is never changed."""
+def _compose(frame, grid, goal, path, cam_pose, pose, cov):
+    """The image show() displays, in the layout chosen by SIDE_BY_SIDE."""
+    if not SIDE_BY_SIDE:
+        return _draw(frame, grid, goal, path, cam_pose, pose, cov)
+
+    h = MAP_HEIGHT
+    carte = _draw_map(grid, goal, path, cam_pose, pose, cov)
+    if frame is None:
+        camera = np.full((h, round(h * 4 / 3), 3), 255, dtype=np.uint8)
+        _legend(camera, ["no camera image"], [TEXT])
+    else:
+        camera = cv2.resize(frame, (round(frame.shape[1] * h / frame.shape[0]), h))
+    gap = np.full((h, GAP, 3), 128, dtype=np.uint8)
+    return cv2.hconcat([camera, gap, carte])
+
+
+def _map_px(x, y):
+    """Pixel of a point in metres on the map panel: the lot fills the panel,
+    seen from above, origin at the bottom-left."""
+    scale = MAP_HEIGHT / (common.ROWS * common.CELL)       # pixels per metre
+    return round(x * scale), round(MAP_HEIGHT - y * scale)
+
+
+def _draw_map(grid, goal, path, cam_pose, pose, cov):
+    """The top-down map: white lot, grid, cars, path, target and robot.
+    It uses its own scale (_map_px), never vision.to_pixels."""
+    width = round(MAP_HEIGHT * common.COLS / common.ROWS)
+    blank = np.full((MAP_HEIGHT, width, 3), 255, dtype=np.uint8)
+    return _draw(blank, grid, goal, path, cam_pose, pose, cov, to_px=_map_px)
+
+
+_to_px = None          # metres -> pixels for the drawing in progress
+
+
+def _draw(frame, grid, goal, path, cam_pose, pose, cov, to_px=None):
+    """Draw over a copy of frame (the frame itself is never changed).
+    to_px turns metres into pixels; vision.to_pixels by default."""
+    global _to_px
     if frame is None:
         img = np.full((480, 640, 3), 255, dtype=np.uint8)   # white, like the paper
     else:
         img = frame.copy()
+    to_px = vision.to_pixels if to_px is None else to_px
 
-    if vision.to_pixels(0.0, 0.0) is None:
+    if to_px(0.0, 0.0) is None:
         _legend(img, ["lot not seen yet"], [TEXT])
         return img
 
+    _to_px = to_px
+    try:
+        _draw_items(img, grid, goal, path, cam_pose, pose, cov)
+    finally:
+        _to_px = None
+    return img
+
+
+def _draw_items(img, grid, goal, path, cam_pose, pose, cov):
+    """Everything drawn on the image, with the conversion in _to_px."""
     if SIMPLE:
         if grid is not None:
             _draw_cars(img, grid)
@@ -90,7 +148,7 @@ def _draw(frame, grid, goal, path, cam_pose, pose, cov):
             cv2.drawMarker(img, _px(goal[0], goal[1]), TARGET, cv2.MARKER_STAR, 22, 2)
         if pose is not None:
             _draw_pose(img, pose, POSE, filled=True)
-        return img
+        return
 
     if grid is not None:
         _draw_grid(img, grid)
@@ -107,12 +165,11 @@ def _draw(frame, grid, goal, path, cam_pose, pose, cov):
 
     _legend(img, ["planned path", "target", "camera pose", "filtered pose"],
             [PATH, TARGET, CAM_POSE, POSE])
-    return img
 
 
 def _px(x, y):
     """Pixel of a point in metres, as a tuple of ints for OpenCV."""
-    u, v = vision.to_pixels(x, y)
+    u, v = _to_px(x, y)
     return int(u), int(v)
 
 
