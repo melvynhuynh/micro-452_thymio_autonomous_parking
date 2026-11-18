@@ -13,14 +13,20 @@ Put the Thymio as in tests/thymio_drive.py: at EXAMPLE_POSE (bottom-left cell
 of the lot, facing +x), with 1 m free ahead and 0.6 m to its left. Then, from
 the root of the repository:
 
-    python -m tests.thymio_main            local navigation = the stub
+    python -m tests.thymio_main            local navigation = src/local_nav.py
     python -m tests.thymio_main laurent    Laurent's avoid(), read from his
                                            branch origin/local-navigation
+    python -m tests.thymio_main empty      the fake camera sees an empty lot
+                                           and the target 80 cm straight ahead
+    python -m tests.thymio_main empty label=R3.5_40
+                                           the label goes into the file names
 
-With "laurent", put a box that is not black in the bottom row, third cell
-(about 50 cm ahead of the start): the robot should stop before it, back away,
-and take the next row up. Press Ctrl+C once the robot is parked (state DONE).
-The run is saved in data/ (readings and figure).
+The robot believes what the fake camera says: with the example lot, it
+believes cars stand where the example puts them, even on an empty floor, and
+plans around them. Use "empty" to test going around a box on an empty floor:
+put the box (not black) about 40 cm straight ahead of the start.
+Press Ctrl+C once the robot is parked (state DONE). The run is saved in
+data/ (readings and figure).
 """
 
 import csv
@@ -40,7 +46,9 @@ from tests.sim_go_to import draw
 
 pose = common.EXAMPLE_POSE   # pose from the wheel speeds
 last_read = None             # time of the last robot.read()
-log = []                     # (time, x, y, theta, prox front max)
+log = []                     # (time, x, y, theta, 5 front prox values)
+lot_grid = common.EXAMPLE_GRID.copy()   # what the fake camera sees
+lot_goal = common.EXAMPLE_GOAL
 
 
 def read_and_track():
@@ -51,7 +59,7 @@ def read_and_track():
     if last_read is not None:
         pose = move(pose, wheel_speeds[0], wheel_speeds[1], now - last_read)
     last_read = now
-    log.append((now, pose[0], pose[1], pose[2], max(prox[:5])))
+    log.append((now, pose[0], pose[1], pose[2], *prox[:5]))
     return prox, ground, wheel_speeds
 
 
@@ -61,8 +69,8 @@ def read_frame():
 
 
 def detect(frame):
-    """The example lot and target, and the pose from the wheel speeds."""
-    return common.EXAMPLE_GRID.copy(), pose, common.EXAMPLE_GOAL
+    """The lot and target, and the pose from the wheel speeds."""
+    return lot_grid.copy(), pose, lot_goal
 
 
 def laurent_local_nav():
@@ -82,11 +90,15 @@ if __name__ == "__main__":
                                        set_speed=robot.set_speed)
     main.vision = types.SimpleNamespace(read_frame=read_frame, detect=detect)
     main.global_nav = fake_world
+    if "empty" in sys.argv:
+        lot_grid[:, :] = 0
+        lot_goal = common.cell_to_xy(common.ROWS - 1, common.COLS - 1)
+        print(f"Empty lot, target straight ahead at {lot_goal}")
     if "laurent" in sys.argv:
         main.local_nav = laurent_local_nav()
         print("Local navigation: Laurent's avoid() from origin/local-navigation")
     else:
-        print("Local navigation: the stub (never takes the wheels)")
+        print("Local navigation: src/local_nav.py of this branch")
 
     input("Robot at the start, facing +x? Press Enter to start, Ctrl+C once "
           "it is parked.")
@@ -96,13 +108,20 @@ if __name__ == "__main__":
         print("Stopped by Ctrl+C.")
 
     stamp = time.strftime("%Y%m%d_%H%M%S")
+    # Optional label, to recognise the run: label=R3.5_40 -> ..._R3.5_40.csv
+    for argument in sys.argv:
+        if argument.startswith("label="):
+            stamp += "_" + argument[len("label="):]
     with open(f"data/thymio_main_{stamp}.csv", "w", newline="") as file:
         writer = csv.writer(file)
-        writer.writerow(["time_s", "x_m", "y_m", "theta_rad", "prox_front_max"])
-        writer.writerows([(t - log[0][0], x, y, th, p) for t, x, y, th, p in log])
-    draw_log = [(t - log[0][0], x, y, th, 0, 0) for t, x, y, th, _ in log]
+        writer.writerow(["time_s", "x_m", "y_m", "theta_rad", "prox_front_left",
+                         "prox_front_centre_left", "prox_front_centre",
+                         "prox_front_centre_right", "prox_front_right"])
+        writer.writerows([(line[0] - log[0][0], *line[1:]) for line in log])
+    draw_log = [(line[0] - log[0][0], *line[1:4], 0, 0) for line in log]
     draw([("Thymio, main.py, pose from wheel speeds", draw_log)],
-         common.EXAMPLE_PATH, common.EXAMPLE_POSE).savefig(
+         [lot_goal] if "empty" in sys.argv else common.EXAMPLE_PATH,
+         common.EXAMPLE_POSE, lot_grid).savefig(
         f"data/thymio_main_{stamp}.png", dpi=120)
     print(f"Saved as data/thymio_main_{stamp}.csv and .png")
     plt.show()

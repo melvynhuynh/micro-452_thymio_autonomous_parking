@@ -115,8 +115,12 @@ def report(name, log, path, start):
           f"{slow * DT:.1f} s with a wheel slow or reversed")
 
 
-def draw(runs, path, start):
-    """Draw the trajectories on the lot, and the wheel speeds over time."""
+def draw(runs, path, start, grid=None):
+    """Draw the trajectories on the lot, and the wheel speeds over time.
+
+    grid: the cars to draw; the shared example if None."""
+    if grid is None:
+        grid = common.EXAMPLE_GRID
     figure, (lot, speeds) = plt.subplots(1, 2, figsize=(13, 5))
 
     # The lot: grid lines, cars of the example, waypoints with their tolerance.
@@ -128,7 +132,7 @@ def draw(runs, path, start):
         lot.plot([0, width], [row * common.CELL] * 2, color="lightblue", lw=1)
     for row in range(common.ROWS):
         for col in range(common.COLS):
-            if common.EXAMPLE_GRID[row, col] == 1:
+            if grid[row, col] == 1:
                 x, y = common.cell_to_xy(row, col)
                 lot.add_patch(plt.Rectangle((x - 0.075, y - 0.075), 0.15, 0.15,
                                             color="black"))
