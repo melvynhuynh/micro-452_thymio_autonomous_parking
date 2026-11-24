@@ -132,8 +132,9 @@ def main(max_turns=None):
             # Boxes stand on both sides of the parking bay: while driving
             # into it (last waypoint), only a closer object counts.
             threshold = local_nav.FOLLOW_THRESHOLD
-            if state == FOLLOW and len(path) == 1:
-                threshold = local_nav.PARKING_THRESHOLD
+
+            #TODO : implement state PARKING as well
+            
             override = local_nav.avoid(prox, ground, threshold)
 
             # --- Remember the last grid and the last target seen -----------
