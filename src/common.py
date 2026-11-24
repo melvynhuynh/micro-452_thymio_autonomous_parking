@@ -13,9 +13,13 @@ COLS = 5      # number of columns of the grid
 
 # --- The robot (to measure, Antoine) -----------------------------------------
 
-THYMIO_TO_MS = None   # metres per second for one Thymio speed unit
-WHEEL_BASE = None     # distance between the two wheels, in metres
-WAYPOINT_TOL = None   # distance at which a waypoint counts as reached, in metres
+# Measured on 2026-11-17 with tests/calibrate.py; every run is in data/
+# (calibration_results.csv and one recording per run).
+THYMIO_TO_MS = 0.000299   # m/s per Thymio speed unit: mean of 4 straight runs
+                          # at 100-200 units (0.000286 to 0.000304)
+WHEEL_BASE = 0.0964       # m, effective distance between the wheels: mean of
+                          # 2 spins (0.0950 and 0.0977)
+WAYPOINT_TOL = 0.02       # distance at which a waypoint counts as reached, in m
 
 
 # --- Cells <-> metres --------------------------------------------------------

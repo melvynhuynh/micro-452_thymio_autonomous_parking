@@ -1,0 +1,73 @@
+box_x_m,place,side,depth_cm,result,gap_to_box_cm,off_path_cm,avoidances
+0.4,"between waypoints, early",right,0,parked,1.4,4.3,1
+0.4,"between waypoints, early",right,1,parked,0.7,4.3,1
+0.4,"between waypoints, early",right,2,parked,0.3,5.3,2
+0.4,"between waypoints, early",right,3,parked,-0.2,5.6,4
+0.4,"between waypoints, early",right,4,STUCK,-0.4,3.1,5
+0.4,"between waypoints, early",right,5,STUCK,-0.6,3.2,5
+0.4,"between waypoints, early",right,6,STUCK,-0.9,3.5,5
+0.4,"between waypoints, early",right,7,STUCK,0.4,5.1,5
+0.4,"between waypoints, early",right,8,STUCK,0.4,5.1,5
+0.4,"between waypoints, early",left,0,parked,1.4,4.4,1
+0.4,"between waypoints, early",left,1,parked,0.8,4.5,1
+0.4,"between waypoints, early",left,2,parked,0.2,5.5,2
+0.4,"between waypoints, early",left,3,parked,-0.1,5.6,3
+0.4,"between waypoints, early",left,4,STUCK,-0.6,3.2,5
+0.4,"between waypoints, early",left,5,STUCK,-0.6,3.1,5
+0.4,"between waypoints, early",left,6,STUCK,-0.9,3.4,5
+0.4,"between waypoints, early",left,7,STUCK,-1.3,4.0,5
+0.4,"between waypoints, early",left,8,STUCK,-1.4,4.4,5
+0.5,on a waypoint,right,0,parked,1.7,4.1,1
+0.5,on a waypoint,right,1,parked,0.9,4.2,1
+0.5,on a waypoint,right,2,parked,0.3,4.3,1
+0.5,on a waypoint,right,3,parked,0.0,5.3,2
+0.5,on a waypoint,right,4,parked,-0.4,5.4,3
+0.5,on a waypoint,right,5,STUCK,-0.3,2.7,4
+0.5,on a waypoint,right,6,STUCK,-0.4,2.7,4
+0.5,on a waypoint,right,7,STUCK,-0.7,3.1,4
+0.5,on a waypoint,right,8,STUCK,-0.8,3.5,4
+0.5,on a waypoint,left,0,parked,1.4,4.2,1
+0.5,on a waypoint,left,1,parked,1.0,4.3,1
+0.5,on a waypoint,left,2,parked,0.4,4.4,1
+0.5,on a waypoint,left,3,parked,0.1,5.3,2
+0.5,on a waypoint,left,4,parked,-0.6,5.4,2
+0.5,on a waypoint,left,5,STUCK,-0.3,2.7,4
+0.5,on a waypoint,left,6,STUCK,-0.5,3.0,4
+0.5,on a waypoint,left,7,STUCK,0.5,4.2,4
+0.5,on a waypoint,left,8,STUCK,0.5,4.2,4
+0.6,between waypoints,right,0,parked,1.5,4.3,1
+0.6,between waypoints,right,1,parked,0.7,4.3,1
+0.6,between waypoints,right,2,parked,0.2,5.3,2
+0.6,between waypoints,right,3,parked,-0.2,5.4,3
+0.6,between waypoints,right,4,STUCK,-0.4,3.1,5
+0.6,between waypoints,right,5,STUCK,-0.6,3.1,5
+0.6,between waypoints,right,6,STUCK,-0.8,3.4,5
+0.6,between waypoints,right,7,STUCK,0.6,5.5,5
+0.6,between waypoints,right,8,STUCK,0.6,5.5,5
+0.6,between waypoints,left,0,parked,1.4,4.3,1
+0.6,between waypoints,left,1,parked,0.8,4.3,1
+0.6,between waypoints,left,2,parked,0.2,4.3,1
+0.6,between waypoints,left,3,parked,-0.0,5.5,3
+0.6,between waypoints,left,4,STUCK,-0.5,3.3,5
+0.6,between waypoints,left,5,STUCK,-0.5,3.2,5
+0.6,between waypoints,left,6,STUCK,-0.8,3.5,5
+0.6,between waypoints,left,7,STUCK,-1.1,4.0,5
+0.6,between waypoints,left,8,STUCK,-1.2,4.4,5
+0.8,just before the target,right,0,parked,1.3,4.6,1
+0.8,just before the target,right,1,parked,0.7,4.5,1
+0.8,just before the target,right,2,parked,0.0,4.5,1
+0.8,just before the target,right,3,parked,-0.9,4.5,1
+0.8,just before the target,right,4,parked,-1.2,6.1,4
+0.8,just before the target,right,5,parked,-2.2,6.0,5
+0.8,just before the target,right,6,STUCK,-1.7,7.2,8
+0.8,just before the target,right,7,STUCK,-1.7,4.3,5
+0.8,just before the target,right,8,STUCK,-1.4,4.3,5
+0.8,just before the target,left,0,parked,1.5,4.3,1
+0.8,just before the target,left,1,parked,0.8,4.5,1
+0.8,just before the target,left,2,parked,0.1,4.4,1
+0.8,just before the target,left,3,parked,-0.8,4.4,1
+0.8,just before the target,left,4,parked,-0.9,6.1,3
+0.8,just before the target,left,5,parked,-1.8,6.0,6
+0.8,just before the target,left,6,STUCK,-1.6,7.1,8
+0.8,just before the target,left,7,STUCK,-0.5,9.5,5
+0.8,just before the target,left,8,STUCK,-0.5,9.1,5
