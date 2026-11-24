@@ -73,7 +73,11 @@ def set_speed(left, right):
 
 # --- local_nav ---------------------------------------------------------------
 
-def avoid(prox, ground):
+FOLLOW_THRESHOLD = 3000    # same names as in local_nav.py
+PARKING_THRESHOLD = 4600
+
+
+def avoid(prox, ground, threshold):
     """Fake avoidance: nothing is ever in the way."""
     return None
 
