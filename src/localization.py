@@ -13,29 +13,45 @@ from src import common
 
 mu = None   # best estimate of (x, y, theta), or None when unknown
 Sigma = None  # uncertainty of (x, y, theta), or None when unknown
-THYMIO_TO_MS = 0.0004
-WHEEL_BASE = 0.095
+THYMIO_TO_MS = common.THYMIO_TO_MS
+WHEEL_BASE = common.WHEEL_BASE
 
 KIDNAP_DIST = 0.10    # m: camera this far from the prediction -> robot was moved
 KIDNAP_ANGLE = 1.0    # rad (~57 deg): same for the heading
 
-R = np.diag([1e-5, 1e-5, 1e-4]) #TODO: Use real noise values after measuring, 
+#R = np.diag([1e-5, 1e-5, 1e-4]) #TODO: Use real motion noise values after measuring, 
 #currently: per step: ~3 mm, ~3 mm, ~0.01 rad std
+
+SPEED_NOISE = 5        # Thymio units: spread of the measured wheel speeds (data/calibration_results.csv)
+SCALE_ERROR = 0.03     # 3 %: spread of THYMIO_TO_MS between calibration runs
 
 Q = np.diag([0.003**2, 0.003**2, 0.05**2])#TODO: Use real noise values after measuring,
 #Currently: std: 3 mm, 3 mm, 0.05 rad
-
 
 def wrap(angle):
     """Wrap an angle in radians to [-pi, pi]."""
     return (angle + np.pi) % (2 * np.pi) - np.pi
 
+def process_noise(theta, vl, vr, dt):
+    """Noise added by one prediction step (R), from the wheel-speed noise."""
+    # 1. sigma_l², sigma_r²  (step 1, point 2 of the guide)
+    sigma_l2=(SPEED_NOISE*THYMIO_TO_MS)**2+(SCALE_ERROR*vl)**2
+    sigma_r2=(SPEED_NOISE*THYMIO_TO_MS)**2+(SCALE_ERROR*vr)**2
+    # 2. M = 2x2 matrix
+    M = np.array([[sigma_l2, 0], [0, sigma_r2]])
+    # 3. V = 3x2 matrix
+    V = dt * np.array([[np.cos(theta)/2, np.cos(theta)/2],
+                  [np.sin(theta)/2, np.sin(theta)/2],
+                  [-1/WHEEL_BASE, 1/WHEEL_BASE]]) 
+    # 4. return V @ M @ V.T
+    return V @ M @ V.T
+
 def predict(mu, Sigma, wheel_speeds, dt):
-    vl=wheel_speeds[0]*THYMIO_TO_MS #TODO: Use common value when avaliable
+    vl=wheel_speeds[0]*THYMIO_TO_MS 
     vr=wheel_speeds[1]*THYMIO_TO_MS
     #Motion model:
     v=(vl+vr)/2
-    w=(vr-vl)/WHEEL_BASE #TODO: Use common value when avaliable
+    w=(vr-vl)/WHEEL_BASE 
     x_new=mu[0]+v*np.cos(mu[2])*dt
     y_new=mu[1]+v*np.sin(mu[2])*dt
     theta_new=mu[2]+w*dt
@@ -45,7 +61,7 @@ def predict(mu, Sigma, wheel_speeds, dt):
               [0, 1, np.cos(mu[2])*v*dt],
               [0, 0, 1]])
 
-
+    R=process_noise(mu[2],vl,vr,dt)
     Sigma=G@Sigma@G.T+R
     mu=np.array([x_new,y_new,theta_new])
     
