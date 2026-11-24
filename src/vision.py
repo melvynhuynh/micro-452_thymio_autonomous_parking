@@ -5,6 +5,9 @@ From a camera image, find the cars, the robot and the target.
 Detection works on the real camera, to_pixels and threshold tuning still to do
 """
 
+import atexit
+import time
+
 import numpy as np
 import cv2
 
@@ -23,14 +26,26 @@ DOT_LO, DOT_HI     = (145, 80, 70),  (170, 255, 255)
 
 MARKER_D    = 0.0     # marker centre ahead of the wheel axis, m
 
+MARKER_ANGLE = 0.0        # rad: heading error of the marker on the robot (subtract) #TODO: Add the real value after measuring, currently 0 for testing
+HEIGHT_K = 0.0            # stretch from the marker height (0 = no correction)
+CAM_FLOOR = (0.0, 0.0)    # m: point of the lot straight below the camera
+
 #CORNERS = [(50, 50), (1250, 50), (1250, 850), (50, 850)]
 
 last_corners = None
 
 USE_CAMERA = True
+HIDE_CAMERA = None   # e.g. (5, 12): from 5 s to 12 s after the first image, act as if
+                     # the camera sees nothing (filter test). None = off.
+_first_read = None   # time of the first read_frame() call
+_failed_reads = 0    # camera reads that failed in a row
 
 CAP = cv2.VideoCapture(1, cv2.CAP_DSHOW) if USE_CAMERA else None # 0 = laptop webcam, 1 = usually the USB camera
+if CAP is not None and not CAP.isOpened():
+    print("Camera could not be opened (busy, or wrong number)")
+    CAP = None
 if CAP is not None:
+    atexit.register(CAP.release)   # give the camera back to Windows when the program ends
     for _ in range(30):       # about 1 s: let auto-exposure settle
         CAP.read()
 
@@ -196,7 +211,11 @@ def find_robot(top):
     if found is None:
         return None
     (cx, cy), (fx, fy) = found
-    theta = np.arctan2(fy-cy, fx-cx)
+    theta = np.arctan2(fy-cy, fx-cx) - MARKER_ANGLE
+    theta = (theta + np.pi) % (2 * np.pi) - np.pi     # back to [-pi, pi]
+
+    cx = CAM_FLOOR[0] + (cx - CAM_FLOOR[0]) / (1 + HEIGHT_K)
+    cy = CAM_FLOOR[1] + (cy - CAM_FLOOR[1]) / (1 + HEIGHT_K)
 
     x = cx - MARKER_D * np.cos(theta)
     y = cy - MARKER_D * np.sin(theta)
@@ -208,11 +227,22 @@ def read_frame():
     Gives back the image (as OpenCV reads it), or None if the camera gives
     nothing.
     """
+    global _failed_reads, _first_read
     if not USE_CAMERA:
         return cv2.imread("data/captured_image3.png")
-    ok, frame = CAP.read()
+    if CAP is None:
+        raise SystemExit("No camera: camera 1 could not be opened (busy, or wrong number)")
+    ok, frame = CAP.read()          # still read while hidden: no old images pile up
     if not ok:
+        _failed_reads += 1
+        if _failed_reads % 10 == 1:     # 1st, 11th, 21st...: don't flood the terminal
+            print(f"Camera read failed ({_failed_reads} in a row)")
         return None
+    _failed_reads = 0
+    if _first_read is None:
+        _first_read = time.time()
+    if HIDE_CAMERA is not None and HIDE_CAMERA[0] <= time.time() - _first_read < HIDE_CAMERA[1]:
+        return None                 # camera "hidden"
     return frame
 
 

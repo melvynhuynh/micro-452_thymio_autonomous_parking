@@ -7,6 +7,9 @@ Extended Kalman filter on (x, y, theta). Predicts with the wheel speeds and
 corrects with the camera pose when the robot is visible; resets to the camera
 if the robot gets moved by hand.
 """
+import csv
+import time
+
 import numpy as np
 
 from src import common
@@ -27,6 +30,10 @@ SCALE_ERROR = 0.03     # 3 %: spread of THYMIO_TO_MS between calibration runs
 
 Q = np.diag([0.003**2, 0.003**2, 0.05**2])#TODO: Use real noise values after measuring,
 #Currently: std: 3 mm, 3 mm, 0.05 rad
+
+LOG = False   # True: write every call of update() to data/filter_log_<date_time>.csv
+_log = None          # csv writer, opened at the first call
+_log_start = None    # time of the first call
 
 def wrap(angle):
     """Wrap an angle in radians to [-pi, pi]."""
@@ -77,6 +84,35 @@ def correct(mu, Sigma, z):
     Sigma=(np.eye(3)-K@H)@Sigma
     return mu, Sigma
 
+def _write_log(event, cam_pose, wheel_speeds, dt, innov=None, s=None):
+    """One line of the filter log: what came in, and what the filter now believes.
+
+    event   "unknown" (never seen), "init", "predict" (camera hidden: wheels
+            only), "correct" (camera used) or "kidnap" (jumped to the camera).
+    innov   camera - prediction, before the correction (only for "correct").
+    s       its expected size: sqrt of the diagonal of Sigma + Q.
+    """
+    global _log, _log_start
+    if _log is None:
+        name = "data/filter_log_" + time.strftime("%Y%m%d_%H%M%S") + ".csv"
+        f = open(name, "w", newline="", buffering=1)   # buffering=1: every line saved at once
+        _log = csv.writer(f)
+        _log.writerow(["t", "dt", "event", "cam_x", "cam_y", "cam_theta",
+                       "x", "y", "theta", "std_x", "std_y", "std_theta",
+                       "innov_x", "innov_y", "innov_theta", "s_x", "s_y", "s_theta",
+                       "wheel_left", "wheel_right"])
+        _log_start = time.time()
+        print(f"Filter log: {name}")
+    empty = ["", "", ""]
+    _log.writerow([round(time.time() - _log_start, 3), dt, event,
+                   *(cam_pose if cam_pose is not None else empty),
+                   *(mu if mu is not None else empty),
+                   *(np.sqrt(np.diag(Sigma)) if Sigma is not None else empty),
+                   *(innov if innov is not None else empty),
+                   *(s if s is not None else empty),
+                   *wheel_speeds])
+
+
 def update(cam_pose, wheel_speeds, dt):
     """Estimate where the robot is.
 
@@ -92,13 +128,18 @@ def update(cam_pose, wheel_speeds, dt):
     global mu, Sigma
     if mu is None:   #First call everything is None so needs to initalize mu and Sigma
         if cam_pose is None:
+            if LOG:
+                _write_log("unknown", None, wheel_speeds, dt)
             return None, None           # never seen the robot yet
         mu = np.array(cam_pose, dtype=float)
         Sigma = Q.copy()                # start as uncertain as one camera measurement
+        if LOG:
+            _write_log("init", cam_pose, wheel_speeds, dt)
         return (float(mu[0]), float(mu[1]), float(mu[2])), Sigma
-    
+
     #Prediction step:
     mu,Sigma=predict(mu,Sigma,wheel_speeds,dt)
+    event, innov, s = "predict", None, None
 
     #Update step:
     # Correction step, or reset if the robot was moved by hand
@@ -108,10 +149,15 @@ def update(cam_pose, wheel_speeds, dt):
         if dist > KIDNAP_DIST or dtheta > KIDNAP_ANGLE:
             mu = np.array(cam_pose, dtype=float)     # jump to the camera
             Sigma = Q.copy()
+            event = "kidnap"
         else:
+            innov = np.array(cam_pose) - mu          # for the log only
+            innov[2] = wrap(innov[2])
+            s = np.sqrt(np.diag(Sigma + Q))
             mu, Sigma = correct(mu, Sigma, cam_pose)
-    # TODO (Joshua): Fix noise to use values measured on our own recordings in data/, not default ones.
-    # Use common values for THYMIO_TO_MS and WHEEL_BASE when available
+            event = "correct"
+    if LOG:
+        _write_log(event, cam_pose, wheel_speeds, dt, innov, s)
     return (float(mu[0]), float(mu[1]), float(mu[2])), Sigma
 
 
