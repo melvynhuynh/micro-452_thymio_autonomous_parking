@@ -19,7 +19,7 @@ WHEEL_BASE = common.WHEEL_BASE
 KIDNAP_DIST = 0.10    # m: camera this far from the prediction -> robot was moved
 KIDNAP_ANGLE = 1.0    # rad (~57 deg): same for the heading
 
-#R = np.diag([1e-5, 1e-5, 1e-4]) #TODO: Use real motion noise values after measuring, 
+#R = np.diag([1e-5, 1e-5, 1e-4]) #Old testing noise values, replaced with measured ones 
 #currently: per step: ~3 mm, ~3 mm, ~0.01 rad std
 
 SPEED_NOISE = 5        # Thymio units: spread of the measured wheel speeds (data/calibration_results.csv)

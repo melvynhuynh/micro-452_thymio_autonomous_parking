@@ -13,6 +13,17 @@ README (start at (0.10, 0.10), facing +x).
 | `calibration_straight_*.csv` | Straight runs at 100, 100, 150, 200 units: asked and measured wheel speeds every 0.1 s. Give `THYMIO_TO_MS` = 0.000299 |
 | `calibration_spin_*.csv` | Spins at 100 and 150 units. Give `WHEEL_BASE` = 0.0964 m |
 
+## Camera noise, `tests/camera_noise.py`
+
+The robot stands still at 10 known poses (4 corner cells and cell (2, 2),
+facing 0 and 90 degrees); 100 camera poses at each. One line per frame: true
+pose and camera pose. `python -m tests.camera_noise analyse <file>` gives the
+bias, the jitter and Q.
+
+| File | Setup | Result |
+|---|---|---|
+| `camera_noise_20261124_180851.csv` | First trial: markers only placed on the Thymio, not taped | Jitter about 1 mm and 0.3 deg, but bias up to 4 cm and 6.6 deg: marker 28 mm behind the wheel axis, turned by -5 deg, and a 3 % stretch from the marker height. Not used for Q |
+
 ## Simulations (no robot)
 
 | File | What |
